@@ -235,12 +235,17 @@ wrangler secret put AUTH_MODE   # value: clerk
 - `/login` shows Clerk's sign-in. There is no `/setup`: the first sign-in claims
   the instance, and `/onboarding` connects a mail domain.
 - Password sign-in, first-login setup, admin-set passwords and temporary-password
-  invites are disabled. Invite people in Clerk; they claim an address on
-  `/onboarding` after signing in.
+  invites are disabled.
+- **Inviting people:** on the admin page, or with
+  `quickinbox users create --name <name> --email <their-sign-in-email> --local <part> --domain <id>`,
+  give the address they sign in with (their Clerk email) and the mailbox they
+  get. No password. The account is claimed the first time they sign in with that
+  email, and it does not need to be in `ALLOWED_EMAILS`. Invites only claim
+  accounts created this way, never an existing password account.
 - Signing out also ends the Clerk session.
 - Anyone can be *authenticated* by Clerk if sign-up is open there, but only
-  admins, the very first user, and `ALLOWED_EMAILS` matches are given an
-  account here. Everyone else sees "this inbox did not accept that account".
+  admins, the very first user, invited emails and `ALLOWED_EMAILS` matches are
+  given an account here. Everyone else sees "this inbox did not accept that account".
   Accounts that already exist are unaffected.
 
 **Keeping accounts in step with Clerk (optional webhook)**

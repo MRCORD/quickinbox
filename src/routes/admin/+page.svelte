@@ -16,6 +16,7 @@
 	let newUserDomainId = $state('');
 	let name = $state('');
 	let password = $state('');
+	let signInEmail = $state('');
 	let makeAdmin = $state(false);
 
 	$effect(() => {
@@ -66,7 +67,8 @@
 					name,
 					localPart,
 					domainId: newUserDomainId,
-					password,
+					// Clerk installs invite by sign-in email; password installs set a temporary one.
+					...(data.authMode === 'clerk' ? { email: signInEmail } : { password }),
 					isAdmin: makeAdmin
 				})
 			});
@@ -310,7 +312,9 @@
 	<div class="admin-grid">
 		<section class="surface-lg admin-card">
 			<h2><Icon name="user-add-line" size={18} /> {t('admin.newUser')}</h2>
-			<p class="card-hint">{t('admin.newUserHint')}</p>
+			<p class="card-hint">
+				{data.authMode === 'clerk' ? t('admin.newUserHintClerk') : t('admin.newUserHint')}
+			</p>
 			<form class="mt-4 space-y-3" onsubmit={createUser}>
 				<input type="text" bind:value={name} required placeholder={t('admin.displayName')} class="admin-input" />
 				<AddressField
@@ -320,14 +324,24 @@
 					placeholder="name"
 					label={t('settings.addressLabel')}
 				/>
-				<input
-					type="text"
-					bind:value={password}
-					required
-					minlength="8"
-					placeholder={t('admin.temporaryPassword')}
-					class="admin-input"
-				/>
+				{#if data.authMode === 'clerk'}
+					<input
+						type="email"
+						bind:value={signInEmail}
+						required
+						placeholder={t('admin.signInEmail')}
+						class="admin-input"
+					/>
+				{:else}
+					<input
+						type="text"
+						bind:value={password}
+						required
+						minlength="8"
+						placeholder={t('admin.temporaryPassword')}
+						class="admin-input"
+					/>
+				{/if}
 
 				<div class="role-row">
 					<Check

@@ -1,13 +1,14 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 import type { D1Database } from '@cloudflare/workers-types';
+import { createInvitedUser } from './auth';
 import { clerkSessionMatchesUser, exchangeClerkSession, isClerkMode } from './clerk-auth';
 
 type Call = { sql: string; args: unknown[] };
 
 /** Records statements; `existing` is what the lookups by subject / email return. */
 function mockDb(
-	options: { bySubject?: object | null; byEmail?: object | null; clerkRow?: { id: string } | null; userCount?: number } = {}
+	options: { bySubject?: object | null; byEmail?: object | null; clerkRow?: { id: string } | null; userCount?: number; pendingInvite?: boolean } = {}
 ) {
 	const calls: Call[] = [];
 	const row = { id: 'u1', email: 'a@example.com', name: 'Ada', is_admin: 1, must_change_password: 0, created_at: 't' };
@@ -29,11 +30,16 @@ function mockDb(
 								return inserted ? row : (options.bySubject ?? null);
 							}
 							if (sql.includes('WHERE email = ?')) return options.byEmail ?? null;
+							if (sql.includes('FROM users WHERE id = ?')) return inserted ? row : null;
 							if (sql.includes('COUNT(*)')) return { count: options.userCount ?? 0 };
 							return null;
 						},
 						async run() {
 							if (sql.startsWith('INSERT INTO users')) inserted = true;
+							if (sql.startsWith('UPDATE users SET external_id')) {
+								inserted = Boolean(options.pendingInvite);
+								return { meta: { changes: options.pendingInvite ? 1 : 0 } };
+							}
 							return { meta: { changes: 1 } };
 						}
 					};
@@ -191,5 +197,46 @@ describe('clerkSessionMatchesUser', () => {
 		const { db, calls } = mockDb();
 		assert.equal(await clerkSessionMatchesUser(db, { CLERK_JWT_KEY: pem }, token, 'u1'), true);
 		assert.equal(calls.length, 0);
+	});
+});
+
+describe('invites', () => {
+	test('signing in with an invited email claims the account without the allowlist', async () => {
+		const { token, pem } = await signToken({ sub: 'user_9', email: 'Invitee@Example.com' });
+		const { db, calls } = mockDb({ userCount: 3, pendingInvite: true });
+
+		const result = await exchangeClerkSession(db, { CLERK_JWT_KEY: pem }, token);
+
+		assert.ok(result);
+		const claim = calls.find((call) => call.sql.startsWith('UPDATE users SET external_id'));
+		assert.deepEqual(claim?.args, ['user_9', 'clerk', 'invitee@example.com']);
+		assert.ok(!calls.some((call) => call.sql.startsWith('INSERT INTO users')));
+		assert.ok(calls.some((call) => call.sql.startsWith('INSERT INTO sessions')));
+	});
+
+	test('the claim only matches unclaimed rows of the same provider', async () => {
+		const { token, pem } = await signToken({ sub: 'user_9', email: 'a@example.com' });
+		const { db, calls } = mockDb({ userCount: 3 });
+		await exchangeClerkSession(db, { CLERK_JWT_KEY: pem }, token);
+
+		const claim = calls.find((call) => call.sql.startsWith('UPDATE users SET external_id'));
+		assert.match(claim?.sql ?? '', /auth_provider = \? AND external_id IS NULL AND email = \?/);
+	});
+
+	test('createInvitedUser makes an unclaimed row with no password', async () => {
+		const { db, calls } = mockDb();
+		await createInvitedUser(db, { email: ' New@Example.com ', name: ' Nia ', provider: 'clerk', isAdmin: true });
+
+		const insert = calls.find((call) => call.sql.startsWith('INSERT INTO users'));
+		assert.deepEqual(insert?.args.slice(1), ['new@example.com', 'Nia', '!', 1, 'clerk']);
+		assert.ok(!insert?.sql.includes('external_id'));
+	});
+
+	test('createInvitedUser refuses an email that already has an account', async () => {
+		const { db } = mockDb({ byEmail: { id: 'x', email: 'a@example.com', password_hash: 'h' } });
+		await assert.rejects(
+			createInvitedUser(db, { email: 'a@example.com', name: 'A', provider: 'clerk' }),
+			/already exists/
+		);
 	});
 });

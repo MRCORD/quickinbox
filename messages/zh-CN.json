@@ -517,6 +517,8 @@
 		"newUserHint": "该地址即为其登录账号。用户必须先更换临时密码，才能打开邮箱。",
 		"displayName": "显示名称",
 		"temporaryPassword": "临时密码",
+		"signInEmail": "登录邮箱（他们在 Clerk 中使用的邮箱）",
+		"newUserHintClerk": "他们使用上方邮箱通过 Clerk 登录，并进入此邮箱。无需设置密码。",
 		"pendingAccountSetup": "等待首次登录设置",
 		"makeAdmin": "将此用户设为管理员",
 		"users": "用户",

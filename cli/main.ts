@@ -44,6 +44,7 @@ Mail:
 Admin:
   quickinbox users list
   quickinbox users create --name <name> --local <part> --domain <id> --password <pw>
+  quickinbox users create --name <name> --local <part> --domain <id> --email <signin-email>   (AUTH_MODE=clerk)
   quickinbox users delete <id>
   quickinbox users passwd <id-or-email> --password <pw>
   quickinbox domains list
@@ -589,10 +590,13 @@ async function usersCommand(sub: string | undefined, rest: string[], flags: Flag
 			const localPart = flagString(flags, 'local');
 			const domainId = flagString(flags, 'domain');
 			const password = flagString(flags, 'password');
-			if (!name || !localPart || !domainId || !password) {
-				throw new Error('users create requires --name, --local, --domain, and --password');
+			const email = flagString(flags, 'email');
+			if (!name || !localPart || !domainId || (!password && !email)) {
+				throw new Error(
+					'users create requires --name, --local, --domain, and --password (or --email on a Clerk install)'
+				);
 			}
-			const created = await client.createUser({ name, localPart, domainId, password });
+			const created = await client.createUser({ name, localPart, domainId, password, email });
 			if (json) printJson(created);
 			else console.log(`Created ${created.user.email} (${created.user.id})`);
 			return 0;

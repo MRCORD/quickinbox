@@ -517,6 +517,8 @@
 		"newUserHint": "Address is their login. They must replace the temporary password before opening mail.",
 		"displayName": "Display name",
 		"temporaryPassword": "Temporary password",
+		"signInEmail": "Sign-in email (the one they use in Clerk)",
+		"newUserHintClerk": "They sign in with Clerk using the email above and land in this mailbox. No password to set.",
 		"pendingAccountSetup": "Waiting for first-login setup",
 		"makeAdmin": "Make this user an admin",
 		"users": "Users",

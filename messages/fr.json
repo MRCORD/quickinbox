@@ -517,6 +517,8 @@
 		"newUserHint": "L’adresse est leur identifiant. Ils doivent remplacer le mot de passe temporaire avant d’ouvrir leur messagerie.",
 		"displayName": "Nom affiché",
 		"temporaryPassword": "Mot de passe temporaire",
+		"signInEmail": "E-mail de connexion (celui qu’ils utilisent dans Clerk)",
+		"newUserHintClerk": "Ils se connectent avec Clerk via l’e-mail ci-dessus et arrivent dans cette boîte. Aucun mot de passe à définir.",
 		"pendingAccountSetup": "En attente de la configuration initiale",
 		"makeAdmin": "Faire de cet utilisateur un administrateur",
 		"users": "Utilisateurs",
