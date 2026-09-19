@@ -81,8 +81,11 @@ export function clerkAppearance(embedded: boolean): Record<string, unknown> {
 		variables,
 		elements: {
 			rootBox: { width: '100%' },
-			cardBox: { ...flat, width: '100%' },
-			card: { ...flat, padding: 0, width: '100%' },
+			// Clerk's card sits at margin-left:-1px inside a cardBox that clips its
+			// overflow, normally masked by the card's own padding. With that padding
+			// gone the left edge of every field was cut off, so neutralise both.
+			cardBox: { ...flat, width: '100%', overflow: 'visible' },
+			card: { ...flat, padding: 0, margin: 0, width: '100%' },
 			// The page already shows the logo and "Sign in".
 			header: { display: 'none' },
 			// Access is decided by the server, not by whether Clerk offers sign-up.
