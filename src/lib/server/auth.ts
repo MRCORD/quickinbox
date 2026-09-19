@@ -210,6 +210,22 @@ export async function upsertExternalUser(
 	const known = await find();
 	if (known) return mapUser(known);
 
+	// An admin invited this email (createInvitedUser): the first verified
+	// sign-in with it claims the account. Only unclaimed rows of this provider
+	// qualify, never a password account, and the invite stands in for the
+	// allowlist because an admin chose the address.
+	const claimed = await db
+		.prepare(
+			`UPDATE users SET external_id = ?
+			 WHERE auth_provider = ? AND external_id IS NULL AND email = ?`
+		)
+		.bind(input.externalId, input.provider, email)
+		.run();
+	if ((claimed.meta?.changes ?? 0) > 0) {
+		const invited = await find();
+		if (invited) return mapUser(invited);
+	}
+
 	if (await getUserByEmail(db, email)) {
 		throw new ExternalAuthError('An account with that email already exists');
 	}
@@ -254,6 +270,45 @@ export async function upsertExternalUser(
 	const created = await find();
 	if (!created) throw new Error('Failed to create user');
 	return mapUser(created);
+}
+
+/**
+ * Pre-create an account for someone who will sign in through the IdP. It has
+ * no `external_id` until they do; see the claim in upsertExternalUser.
+ * `email` is the address they sign in with, not their mailbox.
+ */
+export async function createInvitedUser(
+	db: D1Database,
+	input: { email: string; name: string; provider: string; isAdmin?: boolean }
+): Promise<User> {
+	const email = input.email.toLowerCase().trim();
+	if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+		throw new Error('Enter a valid sign-in email address');
+	}
+	if (await getUserByEmail(db, email)) {
+		throw new Error('An account with that email already exists');
+	}
+
+	const id = crypto.randomUUID();
+	await db
+		.prepare(
+			`INSERT INTO users (id, email, name, password_hash, is_admin, auth_provider)
+			 VALUES (?, ?, ?, ?, ?, ?)`
+		)
+		.bind(id, email, input.name.trim(), EXTERNAL_PASSWORD_SENTINEL, input.isAdmin ? 1 : 0, input.provider)
+		.run();
+
+	const user = await getUserById(db, id);
+	if (!user) throw new Error('Failed to create user');
+	return user;
+}
+
+/** Roll back an invite whose mailbox could not be created. Never touches a claimed account. */
+export async function deletePendingInvite(db: D1Database, userId: string): Promise<void> {
+	await db
+		.prepare('DELETE FROM users WHERE id = ? AND auth_provider != ? AND external_id IS NULL')
+		.bind(userId, 'password')
+		.run();
 }
 
 /**

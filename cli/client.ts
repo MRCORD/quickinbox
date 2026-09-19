@@ -248,7 +248,10 @@ export class QuickInboxClient {
 		name: string;
 		domainId: string;
 		localPart: string;
-		password: string;
+		/** Password installs. */
+		password?: string;
+		/** AUTH_MODE=clerk installs: the address they sign in with. */
+		email?: string;
 	}): Promise<{ user: User; address: MailAddress }> {
 		return this.request('/api/admin/users', {
 			method: 'POST',

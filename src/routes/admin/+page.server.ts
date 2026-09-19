@@ -6,6 +6,7 @@ import {
 	listAvailableDomains,
 	providerLoadError
 } from '$lib/server/context';
+import { isClerkMode } from '$lib/server/clerk-auth';
 import { listAllAddresses, listUnroutedEmails } from '$lib/server/domains';
 
 export const load: PageServerLoad = async ({ locals, platform }) => {
@@ -14,6 +15,7 @@ export const load: PageServerLoad = async ({ locals, platform }) => {
 	}
 
 	const providerKind = safeEmailProviderKind(platform);
+	const authMode = isClerkMode(platform?.env) ? ('clerk' as const) : ('password' as const);
 	const db = platform?.env.DB;
 	if (!db) {
 		return {
@@ -24,6 +26,7 @@ export const load: PageServerLoad = async ({ locals, platform }) => {
 			unrouted: [],
 			devices: [],
 			providerKind,
+			authMode,
 			loadError: 'Database unavailable'
 		};
 	}
@@ -49,6 +52,7 @@ export const load: PageServerLoad = async ({ locals, platform }) => {
 			domains: locals.domains,
 			available,
 			providerKind,
+			authMode,
 			loadError: null
 		};
 	} catch (err) {
@@ -60,6 +64,7 @@ export const load: PageServerLoad = async ({ locals, platform }) => {
 			domains: locals.domains,
 			available: [],
 			providerKind,
+			authMode,
 			loadError: providerLoadError(providerKind, err)
 		};
 	}

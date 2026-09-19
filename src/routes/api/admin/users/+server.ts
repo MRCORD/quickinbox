@@ -1,5 +1,5 @@
 import { json, type RequestHandler } from '@sveltejs/kit';
-import { createUser, deletePendingUser, listUsers } from '$lib/server/auth';
+import { createInvitedUser, createUser, deletePendingInvite, deletePendingUser, listUsers } from '$lib/server/auth';
 import { isClerkMode } from '$lib/server/clerk-auth';
 import { createAddress, getDomain, listAllAddresses } from '$lib/server/domains';
 
@@ -23,10 +23,7 @@ export const POST: RequestHandler = async ({ request, locals, platform }) => {
 	if (!locals.user?.is_admin) {
 		return json({ error: 'Forbidden' }, { status: 403 });
 	}
-	// Invites carry a temporary password; under Clerk, people are invited there.
-	if (isClerkMode(platform?.env)) {
-		return json({ error: 'Invite users in Clerk when AUTH_MODE=clerk' }, { status: 403 });
-	}
+	if (isClerkMode(platform?.env)) return inviteClerkUser(request, platform);
 
 	const db = platform?.env.DB;
 	if (!db) return json({ error: 'Database unavailable' }, { status: 503 });
@@ -86,3 +83,61 @@ export const POST: RequestHandler = async ({ request, locals, platform }) => {
 		);
 	}
 };
+
+/**
+ * Clerk mode: no passwords. The admin names the person, the address they sign
+ * in with, and the mailbox they get. The account is claimed when they first
+ * sign in with that email.
+ */
+async function inviteClerkUser(
+	request: Request,
+	platform: App.Platform | undefined
+): Promise<Response> {
+	const db = platform?.env.DB;
+	if (!db) return json({ error: 'Database unavailable' }, { status: 503 });
+
+	const body = (await request.json()) as {
+		name?: string;
+		email?: string;
+		domainId?: string;
+		localPart?: string;
+		isAdmin?: boolean;
+	};
+
+	if (!body.name?.trim() || !body.email?.trim() || !body.localPart?.trim() || !body.domainId) {
+		return json({ error: 'Name, sign-in email, address, and domain are required' }, { status: 400 });
+	}
+
+	const domain = await getDomain(db, body.domainId);
+	if (!domain) {
+		return json({ error: 'Domain is not connected' }, { status: 400 });
+	}
+
+	const localPart = body.localPart.trim().toLowerCase().replace(/@.*$/, '');
+
+	let invitedUserId: string | null = null;
+	try {
+		const user = await createInvitedUser(db, {
+			email: body.email,
+			name: body.name,
+			provider: 'clerk',
+			isAdmin: body.isAdmin === true
+		});
+		invitedUserId = user.id;
+
+		const address = await createAddress(db, { userId: user.id, domainId: domain.id, localPart });
+		return json({ user, address }, { status: 201 });
+	} catch (error) {
+		if (invitedUserId) {
+			try {
+				await deletePendingInvite(db, invitedUserId);
+			} catch (cleanupError) {
+				console.error('Failed to roll back invite after mailbox creation failed', cleanupError);
+			}
+		}
+		return json(
+			{ error: error instanceof Error ? error.message : 'Failed to invite user' },
+			{ status: 400 }
+		);
+	}
+}

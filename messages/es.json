@@ -517,6 +517,8 @@
 		"newUserHint": "La dirección es su inicio de sesión. Debe reemplazar la contraseña temporal antes de abrir el correo.",
 		"displayName": "Nombre visible",
 		"temporaryPassword": "Contraseña temporal",
+		"signInEmail": "Correo de acceso (el que usan en Clerk)",
+		"newUserHintClerk": "Inician sesión con Clerk usando el correo de arriba y llegan a este buzón. No hay contraseña que definir.",
 		"pendingAccountSetup": "Esperando la configuración inicial",
 		"makeAdmin": "Hacer administrador a este usuario",
 		"users": "Usuarios",
