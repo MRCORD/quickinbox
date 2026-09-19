@@ -7,7 +7,7 @@ type Call = { sql: string; args: unknown[] };
 
 /** Records statements; `existing` is what the lookups by subject / email return. */
 function mockDb(
-	options: { bySubject?: object | null; byEmail?: object | null; clerkRow?: { id: string } | null } = {}
+	options: { bySubject?: object | null; byEmail?: object | null; clerkRow?: { id: string } | null; userCount?: number } = {}
 ) {
 	const calls: Call[] = [];
 	const row = { id: 'u1', email: 'a@example.com', name: 'Ada', is_admin: 1, must_change_password: 0, created_at: 't' };
@@ -16,6 +16,10 @@ function mockDb(
 	const db = {
 		prepare(sql: string) {
 			return {
+				// Unbound statements (countUsers).
+				async first() {
+					return sql.includes('COUNT(*)') ? { count: options.userCount ?? 0 } : null;
+				},
 				bind(...args: unknown[]) {
 					calls.push({ sql, args });
 					return {
@@ -25,6 +29,7 @@ function mockDb(
 								return inserted ? row : (options.bySubject ?? null);
 							}
 							if (sql.includes('WHERE email = ?')) return options.byEmail ?? null;
+							if (sql.includes('COUNT(*)')) return { count: options.userCount ?? 0 };
 							return null;
 						},
 						async run() {
@@ -127,6 +132,37 @@ describe('exchangeClerkSession', () => {
 
 		const insert = calls.find((call) => call.sql.startsWith('INSERT INTO users'));
 		assert.equal(insert?.args[4], 1);
+	});
+});
+
+describe('who may be provisioned', () => {
+	const exchange = async (email: string, env: Record<string, string>, users: number) => {
+		const { token, pem } = await signToken({ sub: 'user_9', email });
+		const { db, calls } = mockDb({ userCount: users });
+		const result = await exchangeClerkSession(db, { CLERK_JWT_KEY: pem, ...env }, token);
+		return { result, created: calls.some((call) => call.sql.startsWith('INSERT INTO users')) };
+	};
+
+	test('a stranger is refused once the instance has users', async () => {
+		const out = await exchange('stranger@evil.com', { ADMIN_EMAILS: 'a@example.com' }, 1);
+		assert.equal(out.result, null);
+		assert.equal(out.created, false);
+	});
+
+	test('the first user on an empty instance still claims it', async () => {
+		assert.equal((await exchange('first@example.com', {}, 0)).created, true);
+	});
+
+	test('admins, exact emails, domains and * are provisioned', async () => {
+		assert.equal((await exchange('a@example.com', { ADMIN_EMAILS: 'a@example.com' }, 1)).created, true);
+		assert.equal((await exchange('b@example.com', { ALLOWED_EMAILS: 'b@example.com' }, 1)).created, true);
+		assert.equal((await exchange('c@corp.io', { ALLOWED_EMAILS: '@corp.io' }, 1)).created, true);
+		assert.equal((await exchange('d@anywhere.net', { ALLOWED_EMAILS: '*' }, 1)).created, true);
+	});
+
+	test('a domain entry does not match a lookalike', async () => {
+		const out = await exchange('x@evilcorp.io', { ALLOWED_EMAILS: '@corp.io' }, 1);
+		assert.equal(out.created, false);
 	});
 });
 

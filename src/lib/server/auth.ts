@@ -189,6 +189,8 @@ export async function upsertExternalUser(
 		email: string;
 		name: string;
 		adminEmails: string[];
+		/** Emails, `@domain` suffixes, or `*` that may be auto-provisioned. */
+		allowedEmails?: string[];
 	}
 ): Promise<User> {
 	const email = input.email.toLowerCase().trim();
@@ -212,7 +214,17 @@ export async function upsertExternalUser(
 		throw new ExternalAuthError('An account with that email already exists');
 	}
 
+	// Open sign-up at the IdP must not become open registration here. Only the
+	// very first user (who claims an empty instance), admins, and anyone on the
+	// allowlist are provisioned; everyone else the IdP authenticates is refused.
 	const allowlisted = input.adminEmails.includes(email) ? 1 : 0;
+	const allowed = (input.allowedEmails ?? []).some(
+		(entry) => entry === '*' || entry === email || (entry.startsWith('@') && email.endsWith(entry))
+	);
+	if (!allowlisted && !allowed && (await countUsers(db)) > 0) {
+		throw new ExternalAuthError('That account is not allowed on this instance');
+	}
+
 	try {
 		await db
 			.prepare(

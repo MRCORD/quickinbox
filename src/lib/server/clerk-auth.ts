@@ -14,6 +14,12 @@ export type ClerkEnv = {
 	CLERK_AUTHORIZED_PARTIES?: string;
 	/** Comma-separated emails that become admins on first sign-in. */
 	ADMIN_EMAILS?: string;
+	/**
+	 * Who may be auto-provisioned besides admins: comma-separated emails,
+	 * `@domain` suffixes, or `*` for anyone the IdP authenticates. Unset means
+	 * only the first user and admins.
+	 */
+	ALLOWED_EMAILS?: string;
 };
 
 export function isClerkMode(env: ClerkEnv | undefined): boolean {
@@ -110,7 +116,8 @@ export async function exchangeClerkSession(
 			externalId: claims.sub,
 			email,
 			name: typeof name === 'string' ? name : '',
-			adminEmails: splitList(env.ADMIN_EMAILS)
+			adminEmails: splitList(env.ADMIN_EMAILS),
+			allowedEmails: splitList(env.ALLOWED_EMAILS)
 		});
 		const session = await createSession(db, user.id);
 		return { user, ...session };

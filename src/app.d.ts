@@ -44,6 +44,8 @@ declare global {
 				CLERK_AUTHORIZED_PARTIES?: string;
 				/** Comma-separated emails made admin on first Clerk sign-in. */
 				ADMIN_EMAILS?: string;
+				/** Emails, `@domain` suffixes or `*` allowed to be auto-provisioned in clerk mode. */
+				ALLOWED_EMAILS?: string;
 				/** Optional TypeSafe key for inbound category/spam classification. */
 				TYPESAFE_API_KEY?: string;
 			};

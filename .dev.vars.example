@@ -55,3 +55,6 @@ TYPESAFE_API_KEY=REPLACE_WITH_YOUR_TYPESAFE_API_KEY
 # CLERK_JWT_KEY="-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY-----"
 # CLERK_AUTHORIZED_PARTIES=http://localhost:5173
 # ADMIN_EMAILS=you@example.com
+# Others allowed to be created on first sign-in: emails, @domain suffixes, or *.
+# Unset = only the first user and ADMIN_EMAILS.
+# ALLOWED_EMAILS=@example.com

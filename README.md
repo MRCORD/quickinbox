@@ -207,6 +207,7 @@ tokens, mobile pairing, MCP OAuth and the account switcher work as before.
 | `CLERK_JWT_KEY` | The instance's PEM public key (JWKS public key in the Clerk dashboard). Public; store it with `wrangler secret put` so the newlines survive. |
 | `CLERK_AUTHORIZED_PARTIES` | Recommended. Comma-separated origins allowed as the token's `azp`, e.g. `https://mail.example.com`. |
 | `ADMIN_EMAILS` | Comma-separated emails that become admin on first sign-in. If nobody has signed in yet, the first person to do so is admin. |
+| `ALLOWED_EMAILS` | Who else may be created on first sign-in: comma-separated emails, `@domain` suffixes, or `*` for anyone Clerk authenticates. Unset means only the first user and `ADMIN_EMAILS`. |
 
 ```bash
 wrangler secret put CLERK_JWT_KEY
@@ -237,6 +238,10 @@ wrangler secret put AUTH_MODE   # value: clerk
   invites are disabled. Invite people in Clerk; they claim an address on
   `/onboarding` after signing in.
 - Signing out also ends the Clerk session.
+- Anyone can be *authenticated* by Clerk if sign-up is open there, but only
+  admins, the very first user, and `ALLOWED_EMAILS` matches are given an
+  account here. Everyone else sees "this inbox did not accept that account".
+  Accounts that already exist are unaffected.
 
 **Moving an existing install to Clerk**
 

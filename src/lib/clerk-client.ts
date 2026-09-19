@@ -2,7 +2,10 @@
 export type ClerkBrowser = {
 	load(): Promise<void>;
 	user?: unknown;
-	mountSignIn(node: HTMLElement, props: { forceRedirectUrl?: string }): void;
+	mountSignIn(
+		node: HTMLElement,
+		props: { forceRedirectUrl?: string; appearance?: Record<string, unknown> }
+	): void;
 	signOut(options?: { redirectUrl?: string }): Promise<void>;
 };
 
