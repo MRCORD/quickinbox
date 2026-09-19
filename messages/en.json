@@ -98,7 +98,11 @@
 		"addAccountTitle": "Add account — {app}",
 		"addAccount": "Add another account",
 		"addAccountHint": "Sign in to another mailbox on this server. You can switch between accounts from the account menu.",
-		"backToInbox": "Back to inbox"
+		"backToInbox": "Back to inbox",
+		"clerkLoading": "Loading sign-in…",
+		"clerkUnavailable": "Sign-in is unavailable. Check that CLERK_PUBLISHABLE_KEY is set.",
+		"clerkRefused": "You are signed in with Clerk, but this inbox did not accept that account. Sign out and try another.",
+		"clerkSignOut": "Sign out"
 	},
 	"accountSetup": {
 		"title": "Complete account setup — {app}",

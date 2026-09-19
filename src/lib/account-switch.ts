@@ -1,3 +1,4 @@
+import { loadClerk } from './clerk-client';
 import { disablePushForCurrentAccount } from './push-client';
 
 /** Where the login form sends people who want a second account in this browser. */
@@ -37,6 +38,20 @@ export async function logoutAccount(everywhere = false): Promise<void> {
 		console.warn('Could not fully remove the push subscription during logout', error);
 	} finally {
 		const response = await fetch(`/api/auth/login${everywhere ? '?all=1' : ''}`, { method: 'DELETE' });
-		window.location.href = await readNext(response, '/login');
+		const body = (await response.json().catch(() => null)) as
+			| { next?: unknown; clerkPublishableKey?: unknown }
+			| null;
+		const next = typeof body?.next === 'string' ? body.next : '/login';
+
+		// Under Clerk, the IdP session has to end too or it signs straight back in.
+		if (next === '/login' && typeof body?.clerkPublishableKey === 'string') {
+			try {
+				await (await loadClerk(body.clerkPublishableKey)).signOut({ redirectUrl: '/login' });
+				return;
+			} catch (error) {
+				console.warn('Could not sign out of Clerk', error);
+			}
+		}
+		window.location.href = next;
 	}
 }

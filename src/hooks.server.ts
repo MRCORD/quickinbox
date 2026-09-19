@@ -1,5 +1,11 @@
 import { redirect, type Handle } from '@sveltejs/kit';
 import { authorizeApiRequest, canAccessDuringFirstLogin } from '$lib/server/api-access';
+import {
+	CLERK_SESSION_COOKIE,
+	clerkSessionMatchesUser,
+	exchangeClerkSession,
+	isClerkMode
+} from '$lib/server/clerk-auth';
 import { getUserByApiToken, readBearerToken } from '$lib/server/api-tokens';
 import { getUserByOAuthToken } from '$lib/server/oauth';
 import {
@@ -99,7 +105,8 @@ function render(
 }
 
 export const handle: Handle = async ({ event, resolve }) => {
-	const db = event.platform?.env.DB;
+	const platformEnv = event.platform?.env;
+	const db = platformEnv?.DB;
 	const { pathname } = event.url;
 	const forwardedProtocol = event.request.headers.get('x-forwarded-proto')?.split(',')[0]?.trim();
 	const effectiveProtocol = forwardedProtocol ? `${forwardedProtocol}:` : event.url.protocol;
@@ -140,6 +147,36 @@ export const handle: Handle = async ({ event, resolve }) => {
 		// header cannot downgrade a legitimate cookie-authenticated API request.
 		const activeToken = readSessionToken(event.cookies);
 		let cookieSession: AuthenticatedSession | null = await getAuthenticatedSession(db, activeToken);
+
+		// Opt-in: with no local session, trade a Clerk session JWT for one. From
+		// here on the request is indistinguishable from a password sign-in.
+		const clerkToken = event.cookies.get(CLERK_SESSION_COOKIE);
+
+		// A different person signing in to Clerk on this browser must not inherit
+		// the previous local session. Page loads only; API calls skip the check.
+		if (
+			cookieSession &&
+			!cookieSession.isMobile &&
+			clerkToken &&
+			platformEnv &&
+			isClerkMode(platformEnv) &&
+			!pathname.startsWith('/api/') &&
+			!(await clerkSessionMatchesUser(db, platformEnv, clerkToken, cookieSession.user.id))
+		) {
+			cookieSession = null;
+		}
+
+		if (!cookieSession && clerkToken && platformEnv && isClerkMode(platformEnv)) {
+			const exchanged = await exchangeClerkSession(db, platformEnv, clerkToken);
+			if (exchanged) {
+				event.cookies.set(
+					SESSION_COOKIE,
+					exchanged.token,
+					sessionCookieOptions(SESSION_DAYS * 24 * 60 * 60, event.url)
+				);
+				cookieSession = { user: exchanged.user, sessionId: exchanged.sessionId, isMobile: false };
+			}
+		}
 
 		// Other accounts signed in on this browser. Only page loads need them (the
 		// switcher); API calls stay single-user and skip the extra query.
@@ -307,7 +344,9 @@ export const handle: Handle = async ({ event, resolve }) => {
 		}
 	}
 
-	const needsSetup = db ? (await countUsers(db)) === 0 : false;
+	// Under Clerk the first sign-in claims the instance, and /onboarding connects
+	// the domain, so there is no password bootstrap screen to route to.
+	const needsSetup = db && !isClerkMode(platformEnv) ? (await countUsers(db)) === 0 : false;
 
 	if (
 		needsSetup &&

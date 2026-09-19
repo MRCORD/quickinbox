@@ -34,6 +34,18 @@ declare global {
 				TELEGRAM_THREAD_ID?: string;
 				/** Public URL of this install, linked from notifications. */
 				APP_URL?: string;
+				/** `password` (default) or `clerk` — see docs on AUTH_MODE. */
+				AUTH_MODE?: string;
+				/** Clerk publishable key (pk_…); public, used by the sign-in screen. */
+				CLERK_PUBLISHABLE_KEY?: string;
+				/** Clerk instance PEM public key; required when AUTH_MODE=clerk. */
+				CLERK_JWT_KEY?: string;
+				/** Comma-separated origins accepted as the Clerk token's `azp`. */
+				CLERK_AUTHORIZED_PARTIES?: string;
+				/** Comma-separated emails made admin on first Clerk sign-in. */
+				ADMIN_EMAILS?: string;
+				/** Emails, `@domain` suffixes or `*` allowed to be auto-provisioned in clerk mode. */
+				ALLOWED_EMAILS?: string;
 				/** Optional TypeSafe key for inbound category/spam classification. */
 				TYPESAFE_API_KEY?: string;
 			};

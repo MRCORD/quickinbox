@@ -1,5 +1,6 @@
 import { json, type RequestHandler } from '@sveltejs/kit';
 import { deleteUser, setUserAdmin, setUserPassword } from '$lib/server/auth';
+import { isClerkMode } from '$lib/server/clerk-auth';
 
 export const PATCH: RequestHandler = async ({ params, request, locals, platform }) => {
 	if (!locals.user?.is_admin) {
@@ -12,6 +13,10 @@ export const PATCH: RequestHandler = async ({ params, request, locals, platform 
 	const body = (await request.json()) as { password?: unknown; isAdmin?: unknown };
 	const hasPassword = body.password !== undefined;
 	const hasRole = body.isAdmin !== undefined;
+
+	if (hasPassword && isClerkMode(platform?.env)) {
+		return json({ error: 'Passwords are managed in Clerk when AUTH_MODE=clerk' }, { status: 403 });
+	}
 
 	if (!hasPassword && !hasRole) {
 		return json({ error: 'Nothing to update' }, { status: 400 });

@@ -191,6 +191,75 @@ out. The menu then lists every signed-in account; pick one to switch (up to 5).
 **Log out of all accounts** ends every session. Each account keeps its own
 session, so revoking one from Settings → Devices does not affect the others.
 
+### Sign in with Clerk (optional)
+
+By default Quickinbox uses email and password. Set `AUTH_MODE=clerk` to sign in
+through [Clerk](https://clerk.com) instead. Nothing changes unless you set it.
+
+Clerk mode keeps the local `sessions` table as the session of record: a valid
+Clerk session cookie is exchanged for a normal Quickinbox session, so API
+tokens, mobile pairing, MCP OAuth and the account switcher work as before.
+
+| Variable | Purpose |
+| --- | --- |
+| `AUTH_MODE` | `clerk` to enable. Unset (or `password`) keeps password sign-in. |
+| `CLERK_PUBLISHABLE_KEY` | Your `pk_…` key. Public. |
+| `CLERK_JWT_KEY` | The instance's PEM public key (JWKS public key in the Clerk dashboard). Public; store it with `wrangler secret put` so the newlines survive. |
+| `CLERK_AUTHORIZED_PARTIES` | Recommended. Comma-separated origins allowed as the token's `azp`, e.g. `https://mail.example.com`. |
+| `ADMIN_EMAILS` | Comma-separated emails that become admin on first sign-in. If nobody has signed in yet, the first person to do so is admin. |
+| `ALLOWED_EMAILS` | Who else may be created on first sign-in: comma-separated emails, `@domain` suffixes, or `*` for anyone Clerk authenticates. Unset means only the first user and `ADMIN_EMAILS`. |
+
+```bash
+wrangler secret put CLERK_JWT_KEY
+wrangler secret put CLERK_PUBLISHABLE_KEY
+wrangler secret put CLERK_AUTHORIZED_PARTIES
+wrangler secret put ADMIN_EMAILS
+wrangler secret put AUTH_MODE   # value: clerk
+```
+
+**Requirements**
+
+- Serve Quickinbox from a subdomain of your Clerk production domain (for
+  `clerk.example.com` that means `mail.example.com`). Clerk sets its `__session`
+  cookie on the root domain, and that cookie is how the exchange authenticates.
+  Production keys do not work on `localhost`; use a development instance there.
+- Add these claims to the session token (Clerk dashboard > Sessions > Customize
+  session token, or `clerk config patch`). Without `email`, sign-in is refused:
+
+  ```json
+  { "email": "{{user.primary_email_address}}", "name": "{{user.full_name}}" }
+  ```
+
+**What changes in Clerk mode**
+
+- `/login` shows Clerk's sign-in. There is no `/setup`: the first sign-in claims
+  the instance, and `/onboarding` connects a mail domain.
+- Password sign-in, first-login setup, admin-set passwords and temporary-password
+  invites are disabled. Invite people in Clerk; they claim an address on
+  `/onboarding` after signing in.
+- Signing out also ends the Clerk session.
+- Anyone can be *authenticated* by Clerk if sign-up is open there, but only
+  admins, the very first user, and `ALLOWED_EMAILS` matches are given an
+  account here. Everyone else sees "this inbox did not accept that account".
+  Accounts that already exist are unaffected.
+
+**Moving an existing install to Clerk**
+
+A Clerk sign-in is never matched to an existing account by email, so an existing
+password admin would be locked out. Link the account once, before enabling
+`AUTH_MODE=clerk` (or while it is on, from a second admin):
+
+1. Find the person's Clerk user id (`user_…`) in the Clerk dashboard.
+2. Run:
+
+   ```bash
+   wrangler d1 execute DB --remote --command \
+     "UPDATE users SET auth_provider='clerk', external_id='user_XXXX' WHERE email='you@example.com'"
+   ```
+
+Their mailbox, addresses and history are untouched. To go back, unset
+`AUTH_MODE`; linked accounts keep the password they had.
+
 ### Desktop notifications (optional)
 
 Quickinbox can push-notify users about new mail even with no tab open:

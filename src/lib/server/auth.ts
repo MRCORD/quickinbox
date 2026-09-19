@@ -143,6 +143,17 @@ export async function login(
 	const valid = await verifyPassword(password, user.password_hash);
 	if (!valid) return null;
 
+	const { token } = await createSession(db, user.id);
+
+	const { password_hash: _, ...safeUser } = user;
+	return { user: safeUser, token };
+}
+
+/** Mint a browser session for a user whose identity has already been established. */
+export async function createSession(
+	db: D1Database,
+	userId: string
+): Promise<{ token: string; sessionId: string }> {
 	const token = createSessionToken();
 	const token_hash = await hashToken(token);
 	const sessionId = crypto.randomUUID();
@@ -150,11 +161,99 @@ export async function login(
 
 	await db
 		.prepare('INSERT INTO sessions (id, user_id, token_hash, expires_at) VALUES (?, ?, ?, ?)')
-		.bind(sessionId, user.id, token_hash, expiresAt)
+		.bind(sessionId, userId, token_hash, expiresAt)
 		.run();
 
-	const { password_hash: _, ...safeUser } = user;
-	return { user: safeUser, token };
+	return { token, sessionId };
+}
+
+/** Stored in `password_hash` for IdP-backed users; verifyPassword() never matches it. */
+export const EXTERNAL_PASSWORD_SENTINEL = '!';
+
+export class ExternalAuthError extends Error {}
+
+/**
+ * Find the local user for an IdP subject, creating it on first sight.
+ *
+ * Never links by email: a local password account that happens to share the
+ * address is refused rather than adopted, so an IdP can't take over an
+ * existing mailbox owner. New users are admins when their email is on the
+ * allowlist or when nobody exists yet (the first sign-in claims the instance,
+ * the way /setup does for passwords).
+ */
+export async function upsertExternalUser(
+	db: D1Database,
+	input: {
+		provider: string;
+		externalId: string;
+		email: string;
+		name: string;
+		adminEmails: string[];
+		/** Emails, `@domain` suffixes, or `*` that may be auto-provisioned. */
+		allowedEmails?: string[];
+	}
+): Promise<User> {
+	const email = input.email.toLowerCase().trim();
+	if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+		throw new ExternalAuthError('The identity provider did not supply a valid email');
+	}
+
+	const find = () =>
+		db
+			.prepare(
+				`SELECT id, email, name, is_admin, must_change_password, created_at
+				 FROM users WHERE auth_provider = ? AND external_id = ?`
+			)
+			.bind(input.provider, input.externalId)
+			.first<UserRow>();
+
+	const known = await find();
+	if (known) return mapUser(known);
+
+	if (await getUserByEmail(db, email)) {
+		throw new ExternalAuthError('An account with that email already exists');
+	}
+
+	// Open sign-up at the IdP must not become open registration here. Only the
+	// very first user (who claims an empty instance), admins, and anyone on the
+	// allowlist are provisioned; everyone else the IdP authenticates is refused.
+	const allowlisted = input.adminEmails.includes(email) ? 1 : 0;
+	const allowed = (input.allowedEmails ?? []).some(
+		(entry) => entry === '*' || entry === email || (entry.startsWith('@') && email.endsWith(entry))
+	);
+	if (!allowlisted && !allowed && (await countUsers(db)) > 0) {
+		throw new ExternalAuthError('That account is not allowed on this instance');
+	}
+
+	try {
+		await db
+			.prepare(
+				`INSERT INTO users
+				 (id, email, name, password_hash, is_admin, auth_provider, external_id)
+				 VALUES (?, ?, ?, ?,
+				   CASE WHEN ? = 1 OR NOT EXISTS (SELECT 1 FROM users) THEN 1 ELSE 0 END,
+				   ?, ?)`
+			)
+			.bind(
+				crypto.randomUUID(),
+				email,
+				input.name.trim() || email,
+				EXTERNAL_PASSWORD_SENTINEL,
+				allowlisted,
+				input.provider,
+				input.externalId
+			)
+			.run();
+	} catch (error) {
+		// A concurrent first request for the same subject won the insert.
+		const raced = await find();
+		if (raced) return mapUser(raced);
+		throw error;
+	}
+
+	const created = await find();
+	if (!created) throw new Error('Failed to create user');
+	return mapUser(created);
 }
 
 export type DeviceSession = {
@@ -413,7 +512,9 @@ export async function setUserPassword(
 
 	const password_hash = await hashPassword(password);
 	const result = await db
-		.prepare('UPDATE users SET password_hash = ? WHERE id = ?')
+		// Never for IdP-backed users: it would replace their sentinel with a
+		// hash that works, opening a password path the IdP is meant to close.
+		.prepare("UPDATE users SET password_hash = ? WHERE id = ? AND auth_provider = 'password'")
 		.bind(password_hash, userId)
 		.run();
 
