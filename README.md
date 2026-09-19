@@ -257,8 +257,8 @@ wrangler secret put AUTH_MODE   # value: clerk
 - Signing out also ends the Clerk session.
 - The account menu has **Manage account**, which opens Clerk's profile modal (name,
   emails, password, sessions), styled to match the app. Changes reach Quickinbox
-  through the webhook below, so set that up if you want renames and email changes
-  mirrored. Someone who is signed in here but has no Clerk session yet is asked to
+  through the webhook below, so set that up if you want renames mirrored and org
+  addresses held as primary. Someone who is signed in here but has no Clerk session yet is asked to
   sign in with Clerk first.
 - Anyone can be *authenticated* by Clerk if sign-up is open there, but only
   admins, the very first user, invited emails and `ALLOWED_EMAILS` matches are
@@ -279,7 +279,13 @@ that, add a webhook in the Clerk dashboard (Webhooks > Add endpoint):
 tokens, MCP grants, pairing codes, push subscriptions) but keeps their account
 and mail, so a mistaken delete in Clerk can't erase a mailbox. An admin can
 delete the account deliberately from the admin page. `user.updated` mirrors
-name and email changes. Accounts are never created by the webhook; they are
+name changes. For email, anyone whose login is one of their own mailboxes (their
+org identity, which is everyone invited from the admin page, and your admin) is
+held to it: if they move their primary email elsewhere in Clerk's profile modal,
+or delete the org address, the webhook puts it back as their primary and the
+change is not copied here. Their personal address stays as a secondary. This
+needs `CLERK_SECRET_KEY` as well as the webhook secret. Accounts whose login is
+not one of their mailboxes have email changes mirrored as usual. Accounts are never created by the webhook; they are
 created at sign-in, subject to `ALLOWED_EMAILS`.
 
 **Moving an existing install to Clerk**
