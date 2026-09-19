@@ -1,6 +1,7 @@
 import { json, type RequestHandler } from '@sveltejs/kit';
 import { createInvitedUser, createUser, deletePendingInvite, deletePendingUser, listUsers } from '$lib/server/auth';
 import { isClerkMode } from '$lib/server/clerk-auth';
+import { sendClerkInvitation } from '$lib/server/clerk-invite';
 import { createAddress, getDomain, listAllAddresses } from '$lib/server/domains';
 
 export const GET: RequestHandler = async ({ locals, platform }) => {
@@ -19,11 +20,11 @@ export const GET: RequestHandler = async ({ locals, platform }) => {
  * Creates a user and their mailbox together — the address doubles as the login,
  * so an invited user lands straight in their inbox with nothing to configure.
  */
-export const POST: RequestHandler = async ({ request, locals, platform }) => {
+export const POST: RequestHandler = async ({ request, locals, platform, url }) => {
 	if (!locals.user?.is_admin) {
 		return json({ error: 'Forbidden' }, { status: 403 });
 	}
-	if (isClerkMode(platform?.env)) return inviteClerkUser(request, platform);
+	if (isClerkMode(platform?.env)) return inviteClerkUser(request, platform, url.origin);
 
 	const db = platform?.env.DB;
 	if (!db) return json({ error: 'Database unavailable' }, { status: 503 });
@@ -91,7 +92,8 @@ export const POST: RequestHandler = async ({ request, locals, platform }) => {
  */
 async function inviteClerkUser(
 	request: Request,
-	platform: App.Platform | undefined
+	platform: App.Platform | undefined,
+	origin: string
 ): Promise<Response> {
 	const db = platform?.env.DB;
 	if (!db) return json({ error: 'Database unavailable' }, { status: 503 });
@@ -126,7 +128,15 @@ async function inviteClerkUser(
 		invitedUserId = user.id;
 
 		const address = await createAddress(db, { userId: user.id, domainId: domain.id, localPart });
-		return json({ user, address }, { status: 201 });
+
+		// With sign-ups restricted at Clerk, a person with no Clerk account needs
+		// an invitation there too. The invite here stands even if this fails.
+		const clerkInvitation = await sendClerkInvitation(
+			platform?.env ?? {},
+			user.email,
+			`${(platform?.env.APP_URL ?? origin).replace(/\/$/, '')}/login`
+		);
+		return json({ user, address, clerkInvitation }, { status: 201 });
 	} catch (error) {
 		if (invitedUserId) {
 			try {

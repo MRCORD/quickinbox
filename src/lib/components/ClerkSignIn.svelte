@@ -84,6 +84,19 @@
 
 		retryFlag(null);
 		status = 'ready';
+
+		// Arriving from a Clerk invitation email: a new person needs the sign-up
+		// form (Clerk reads the ticket from the URL and prefills the email).
+		const params = new URLSearchParams(window.location.search);
+		if (container && params.get('__clerk_ticket') && params.get('__clerk_status') === 'sign_up') {
+			clerk.mountSignUp(container, {
+				forceRedirectUrl: next ?? '/inbox',
+				signInUrl: '/login',
+				appearance: appearance()
+			});
+			return;
+		}
+
 		if (container) clerk.mountSignIn(container, {
 				forceRedirectUrl: next ?? '/inbox',
 				appearance: appearance()

@@ -519,6 +519,8 @@
 		"temporaryPassword": "Temporary password",
 		"signInEmail": "Sign-in email (the one they use in Clerk)",
 		"newUserHintClerk": "They sign in with Clerk using the email above and land in this mailbox. No password to set.",
+		"clerkInviteFailed": "The account was created, but the Clerk invitation email could not be sent. Send one from the Clerk dashboard.",
+		"clerkInviteSkipped": "The account was created. Set CLERK_SECRET_KEY to send the Clerk invitation automatically; for now, invite them from the Clerk dashboard.",
 		"pendingAccountSetup": "Waiting for first-login setup",
 		"makeAdmin": "Make this user an admin",
 		"users": "Users",

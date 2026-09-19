@@ -252,7 +252,7 @@ export class QuickInboxClient {
 		password?: string;
 		/** AUTH_MODE=clerk installs: the address they sign in with. */
 		email?: string;
-	}): Promise<{ user: User; address: MailAddress }> {
+	}): Promise<{ user: User; address: MailAddress; clerkInvitation?: string }> {
 		return this.request('/api/admin/users', {
 			method: 'POST',
 			body: JSON.stringify(input)

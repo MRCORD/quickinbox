@@ -8,6 +8,7 @@
 	import { plural, t } from '$lib/i18n';
 	import { page } from '$app/stores';
 	import { providerName } from '$lib/provider-copy';
+	import { invalidateAll } from '$app/navigation';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -25,6 +26,7 @@
 		}
 	});
 	let userError = $state('');
+	let userNotice = $state('');
 	let creatingUser = $state(false);
 
 	let deleteError = $state('');
@@ -75,6 +77,16 @@
 			const body = await res.json();
 			if (!res.ok) {
 				userError = body.error ?? t('admin.failedCreateUser');
+				return;
+			}
+			// The invite exists either way; say so when Clerk couldn't be told.
+			if (body.clerkInvitation === 'failed' || body.clerkInvitation === 'skipped') {
+				userNotice =
+					body.clerkInvitation === 'failed' ? t('admin.clerkInviteFailed') : t('admin.clerkInviteSkipped');
+				name = '';
+				localPart = '';
+				signInEmail = '';
+				await invalidateAll();
 				return;
 			}
 			window.location.reload();
@@ -354,6 +366,7 @@
 				</div>
 
 				{#if userError}<p class="error">{userError}</p>{/if}
+				{#if userNotice}<p class="card-hint">{userNotice}</p>{/if}
 
 				<button type="submit" disabled={creatingUser} class="btn-primary">
 					{creatingUser ? t('common.creating') : t('common.create')}

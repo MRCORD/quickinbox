@@ -598,7 +598,13 @@ async function usersCommand(sub: string | undefined, rest: string[], flags: Flag
 			}
 			const created = await client.createUser({ name, localPart, domainId, password, email });
 			if (json) printJson(created);
-			else console.log(`Created ${created.user.email} (${created.user.id})`);
+			else {
+				console.log(`Created ${created.user.email} (${created.user.id})`);
+				if (created.clerkInvitation === 'sent') console.log('Clerk invitation emailed.');
+				else if (created.clerkInvitation === 'exists') console.log('Already has a Clerk account or invitation; they can sign in.');
+				else if (created.clerkInvitation === 'failed') console.log('Warning: the Clerk invitation could not be sent; send it from the Clerk dashboard.');
+				else if (created.clerkInvitation === 'skipped') console.log('No CLERK_SECRET_KEY on the server; send them a Clerk invitation from the Clerk dashboard.');
+			}
 			return 0;
 		}
 		case 'delete': {
