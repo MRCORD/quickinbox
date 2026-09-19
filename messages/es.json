@@ -85,6 +85,7 @@
 		"accounts": "Cuentas",
 		"switchTo": "Cambiar a {name}",
 		"addAccount": "Añadir cuenta",
+		"manageAccount": "Administrar cuenta",
 		"logOutAll": "Cerrar sesión en todas las cuentas",
 		"switchFailed": "No se pudo cambiar de cuenta"
 	},

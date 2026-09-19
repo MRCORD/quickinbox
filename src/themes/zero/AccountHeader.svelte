@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
+	import { manageAccountKey, openManageAccount } from '$lib/clerk-client';
 	import LocaleSwitcher from '$lib/components/LocaleSwitcher.svelte';
 	import { initials } from '$lib/mail/folders';
 	import { setThemePreference } from '$lib/theme';
@@ -49,6 +50,7 @@
 		darkMode = document.documentElement.dataset.theme === 'dark';
 	});
 
+	const manageKey = $derived(manageAccountKey($page.data));
 	const filteredId = $derived($page.url.searchParams.get('address'));
 	const active = $derived(
 		data.addresses.find((address) => address.id === filteredId) ??
@@ -294,6 +296,18 @@
 				<Icon name="Plus" size={16} />
 				{t('account.addAccount')}
 			</a>
+			{#if manageKey}
+				<button
+					type="button"
+					onclick={() => {
+						closeMenus();
+						void openManageAccount(manageKey);
+					}}
+				>
+					<Icon name="User" size={16} />
+					{t('account.manageAccount')}
+				</button>
+			{/if}
 			<a href="/settings/general" onclick={closeMenus}>
 				<Icon name="SettingsGear" size={16} />
 				{t('nav.settings')}

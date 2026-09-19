@@ -85,6 +85,7 @@
 		"accounts": "账户",
 		"switchTo": "切换到 {name}",
 		"addAccount": "添加账户",
+		"manageAccount": "管理账户",
 		"logOutAll": "退出所有账户",
 		"switchFailed": "无法切换账户"
 	},

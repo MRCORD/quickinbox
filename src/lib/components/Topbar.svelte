@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
+	import { manageAccountKey, openManageAccount } from '$lib/clerk-client';
 	import { haptic } from '$lib/app-chrome';
 	import { t } from '$lib/i18n';
 	import Icon from './Icon.svelte';
@@ -24,6 +25,8 @@
 		onLogout: () => void;
 		onLogoutAll?: () => void;
 	} = $props();
+
+	const manageKey = $derived(manageAccountKey($page.data));
 
 	const otherAccounts = $derived(accounts.filter((account) => !account.current));
 	let switching = $state(false);
@@ -174,6 +177,19 @@
 					</a>
 
 					<div class="menu-divider"></div>
+					{#if manageKey}
+						<button
+							type="button"
+							class="menu-item"
+							role="menuitem"
+							onclick={() => {
+								menuOpen = false;
+								void openManageAccount(manageKey);
+							}}
+						>
+							<Icon name="account-circle-line" size={15} /> {t('account.manageAccount')}
+						</button>
+					{/if}
 					<a href="/settings" class="menu-item" role="menuitem" onclick={() => (menuOpen = false)}>
 						<Icon name="user-settings-line" size={15} /> {t('nav.settings')}
 					</a>

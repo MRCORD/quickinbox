@@ -1,4 +1,5 @@
 import type { LayoutServerLoad } from './$types';
+import { isClerkMode } from '$lib/server/clerk-auth';
 import { emptyMailboxCounts } from '$lib/mail/categories';
 import { listLabels } from '$lib/server/labels';
 import { getMailboxCounts } from '$lib/server/mail-store';
@@ -15,8 +16,13 @@ export const load: LayoutServerLoad = async ({ locals, platform }) => {
 		: emptyMailboxCounts();
 	const labels = ready ? await listLabels(db!, locals.user!.id) : [];
 
+	const clerk = isClerkMode(platform?.env);
+
 	return {
 		user: locals.user,
+		// Lets the account menu offer Clerk's "Manage account". The key is public.
+		authMode: clerk ? ('clerk' as const) : ('password' as const),
+		clerkPublishableKey: clerk ? (platform?.env.CLERK_PUBLISHABLE_KEY ?? null) : null,
 		domains: locals.domains,
 		addresses: locals.addresses,
 		activeDomainId: locals.activeDomainId,

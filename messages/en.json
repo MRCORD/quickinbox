@@ -85,6 +85,7 @@
 		"accounts": "Accounts",
 		"switchTo": "Switch to {name}",
 		"addAccount": "Add account",
+		"manageAccount": "Manage account",
 		"logOutAll": "Log out of all accounts",
 		"switchFailed": "Could not switch account"
 	},

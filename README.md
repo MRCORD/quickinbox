@@ -255,6 +255,11 @@ wrangler secret put AUTH_MODE   # value: clerk
   shows Clerk's sign-up form for them. People who already have a Clerk account
   just sign in.
 - Signing out also ends the Clerk session.
+- The account menu has **Manage account**, which opens Clerk's profile modal (name,
+  emails, password, sessions), styled to match the app. Changes reach Quickinbox
+  through the webhook below, so set that up if you want renames and email changes
+  mirrored. Someone who is signed in here but has no Clerk session yet is asked to
+  sign in with Clerk first.
 - Anyone can be *authenticated* by Clerk if sign-up is open there, but only
   admins, the very first user, invited emails and `ALLOWED_EMAILS` matches are
   given an account here. Everyone else sees "this inbox did not accept that account".
