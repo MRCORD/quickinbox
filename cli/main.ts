@@ -44,7 +44,7 @@ Mail:
 Admin:
   quickinbox users list
   quickinbox users create --name <name> --local <part> --domain <id> --password <pw>
-  quickinbox users create --name <name> --local <part> --domain <id> --email <signin-email>   (AUTH_MODE=clerk)
+  quickinbox users create --name <name> --local <part> --domain <id> --email <personal-email>   (AUTH_MODE=clerk)
   quickinbox users delete <id>
   quickinbox users passwd <id-or-email> --password <pw>
   quickinbox domains list

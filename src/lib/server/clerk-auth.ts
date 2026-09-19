@@ -1,6 +1,7 @@
 import type { D1Database } from '@cloudflare/workers-types';
 import type { User } from '$lib/types';
 import { createSession, ExternalAuthError, upsertExternalUser } from './auth';
+import { makeClerkEmailPrimary } from './clerk-invite';
 
 /** Set by Clerk's frontend SDK; carries the short-lived session JWT. */
 export const CLERK_SESSION_COOKIE = '__session';
@@ -10,6 +11,8 @@ export type ClerkEnv = {
 	AUTH_MODE?: string;
 	/** Instance PEM public key (Clerk dashboard > API keys > JWKS public key). */
 	CLERK_JWT_KEY?: string;
+	/** Clerk secret key; lets a claimed invite make its org address the primary email in Clerk. */
+	CLERK_SECRET_KEY?: string;
 	/** Comma-separated origins allowed as the token's `azp`. Recommended. */
 	CLERK_AUTHORIZED_PARTIES?: string;
 	/** Comma-separated emails that become admins on first sign-in. */
@@ -99,7 +102,8 @@ export async function clerkSessionMatchesUser(
 export async function exchangeClerkSession(
 	db: D1Database,
 	env: ClerkEnv,
-	clerkToken: string
+	clerkToken: string,
+	fetcher: typeof fetch = fetch
 ): Promise<{ user: User; token: string; sessionId: string } | null> {
 	const claims = await verifyClerkToken(env, clerkToken);
 	if (!claims) return null;
@@ -111,7 +115,7 @@ export async function exchangeClerkSession(
 	}
 
 	try {
-		const user = await upsertExternalUser(db, {
+		const { user, claimed } = await upsertExternalUser(db, {
 			provider: 'clerk',
 			externalId: claims.sub,
 			email,
@@ -119,6 +123,14 @@ export async function exchangeClerkSession(
 			adminEmails: splitList(env.ADMIN_EMAILS),
 			allowedEmails: splitList(env.ALLOWED_EMAILS)
 		});
+
+		// Just claimed an invite made at their personal email: make the org address
+		// their primary email in Clerk too. Only at the claim, never on later
+		// sign-ins, so a lagging webhook can't make this undo a change of theirs.
+		if (claimed && user.email !== email.toLowerCase().trim()) {
+			await makeClerkEmailPrimary(env, claims.sub, user.email, fetcher);
+		}
+
 		const session = await createSession(db, user.id);
 		return { user, ...session };
 	} catch (error) {

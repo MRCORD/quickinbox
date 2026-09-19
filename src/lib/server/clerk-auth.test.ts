@@ -11,7 +11,15 @@ function mockDb(
 	options: { bySubject?: object | null; byEmail?: object | null; clerkRow?: { id: string } | null; userCount?: number; pendingInvite?: boolean } = {}
 ) {
 	const calls: Call[] = [];
-	const row = { id: 'u1', email: 'a@example.com', name: 'Ada', is_admin: 1, must_change_password: 0, created_at: 't' };
+	// A claimed invite ends up on its org address; everyone else keeps their email.
+	const row = {
+		id: 'u1',
+		email: options.pendingInvite ? 'org@example.com' : 'a@example.com',
+		name: 'Ada',
+		is_admin: 1,
+		must_change_password: 0,
+		created_at: 't'
+	};
 	let inserted = false;
 
 	const db = {
@@ -238,5 +246,58 @@ describe('invites', () => {
 			createInvitedUser(db, { email: 'a@example.com', name: 'A', provider: 'clerk' }),
 			/already exists/
 		);
+	});
+});
+
+describe('claiming an invite switches the person to their org address', () => {
+	const bodyOf = (call: { init: RequestInit }) => JSON.parse(call.init.body as string);
+
+	function recorder() {
+		const sent: { url: string; init: RequestInit }[] = [];
+		const fetcher = (async (url: string, init: RequestInit) => {
+			sent.push({ url, init });
+			return new Response('{}', { status: 200 });
+		}) as unknown as typeof fetch;
+		return { sent, fetcher };
+	}
+
+	test('the local email moves to the org address and Clerk is told once', async () => {
+		const { token, pem } = await signToken({ sub: 'user_9', email: 'personal@gmail.com' });
+		const { db, calls } = mockDb({ userCount: 3, pendingInvite: true });
+		const { sent, fetcher } = recorder();
+
+		const result = await exchangeClerkSession(db, { CLERK_JWT_KEY: pem, CLERK_SECRET_KEY: 'sk_x' }, token, fetcher);
+
+		assert.equal(result?.user.email, 'org@example.com');
+		assert.ok(calls.some((call) => call.sql.startsWith('UPDATE users SET email = (')));
+		assert.equal(sent.length, 1);
+		assert.equal(sent[0].url, 'https://api.clerk.com/v1/email_addresses');
+		assert.deepEqual(bodyOf(sent[0]), {
+			user_id: 'user_9',
+			email_address: 'org@example.com',
+			verified: true,
+			primary: true
+		});
+	});
+
+	test('later sign-ins never touch Clerk', async () => {
+		const { token, pem } = await signToken({ sub: 'user_9', email: 'org@example.com' });
+		const known = { id: 'u9', email: 'org@example.com', name: 'Ada', is_admin: 0, must_change_password: 0, created_at: 't' };
+		const { db } = mockDb({ bySubject: known });
+		const { sent, fetcher } = recorder();
+
+		await exchangeClerkSession(db, { CLERK_JWT_KEY: pem, CLERK_SECRET_KEY: 'sk_x' }, token, fetcher);
+
+		assert.equal(sent.length, 0);
+	});
+
+	test('a Clerk failure does not block signing in', async () => {
+		const { token, pem } = await signToken({ sub: 'user_9', email: 'personal@gmail.com' });
+		const { db } = mockDb({ userCount: 3, pendingInvite: true });
+		const failing = (async () => new Response('{"errors":[{"code":"form_identifier_exists"}]}', { status: 422 })) as unknown as typeof fetch;
+
+		const result = await exchangeClerkSession(db, { CLERK_JWT_KEY: pem, CLERK_SECRET_KEY: 'sk_x' }, token, failing);
+
+		assert.ok(result);
 	});
 });
