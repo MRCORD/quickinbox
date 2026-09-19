@@ -238,11 +238,15 @@ wrangler secret put AUTH_MODE   # value: clerk
 - Password sign-in, first-login setup, admin-set passwords and temporary-password
   invites are disabled.
 - **Inviting people:** on the admin page, or with
-  `quickinbox users create --name <name> --email <their-sign-in-email> --local <part> --domain <id>`,
-  give the address they sign in with (their Clerk email) and the mailbox they
-  get. No password. The account is claimed the first time they sign in with that
-  email, and it does not need to be in `ALLOWED_EMAILS`. Invites only claim
-  accounts created this way, never an existing password account.
+  `quickinbox users create --name <name> --local <part> --domain <id> --email <their-personal-email>`,
+  give the mailbox they get and the personal email they already read. Clerk
+  emails the invitation there automatically. When they sign up from it, they
+  claim the account: their org address becomes their identity here and their
+  primary email in Clerk, and their personal address stays on their Clerk
+  account as a secondary (handy for recovery). They then sign in with the org
+  address. No password is set by you, and the claim doesn't need
+  `ALLOWED_EMAILS`. Invites only claim accounts created this way, never an
+  existing password account.
 
   If sign-ups are restricted in Clerk (Configure > Restrictions > Sign-up mode:
   *Restricted*, recommended for a private inbox), a person with no Clerk account

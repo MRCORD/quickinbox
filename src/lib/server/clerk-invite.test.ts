@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
-import { sendClerkInvitation } from './clerk-invite';
+import { makeClerkEmailPrimary, sendClerkInvitation } from './clerk-invite';
 
 type Sent = { url: string; init: RequestInit };
 
@@ -64,5 +64,26 @@ describe('sendClerkInvitation', () => {
 			await sendClerkInvitation({ CLERK_SECRET_KEY: 'sk' }, 'a@example.com', 'https://x/login', down.fetcher),
 			'failed'
 		);
+	});
+});
+
+describe('makeClerkEmailPrimary', () => {
+	test('adds the address as verified and primary', async () => {
+		const { fetcher, sent } = fakeFetch(() => json(200, {}));
+		assert.equal(await makeClerkEmailPrimary({ CLERK_SECRET_KEY: 'sk' }, 'user_1', 'ada@org.com', fetcher), true);
+		assert.deepEqual(JSON.parse(sent[0].init.body as string), {
+			user_id: 'user_1',
+			email_address: 'ada@org.com',
+			verified: true,
+			primary: true
+		});
+	});
+
+	test('without a key, or when Clerk refuses, it reports false and does not throw', async () => {
+		const none = fakeFetch(() => json(200, {}));
+		assert.equal(await makeClerkEmailPrimary({}, 'user_1', 'a@b.co', none.fetcher), false);
+		assert.equal(none.sent.length, 0);
+		const refused = fakeFetch(() => json(422, { errors: [{ code: 'form_identifier_exists' }] }));
+		assert.equal(await makeClerkEmailPrimary({ CLERK_SECRET_KEY: 'sk' }, 'user_1', 'a@b.co', refused.fetcher), false);
 	});
 });

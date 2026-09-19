@@ -192,7 +192,7 @@ export async function upsertExternalUser(
 		/** Emails, `@domain` suffixes, or `*` that may be auto-provisioned. */
 		allowedEmails?: string[];
 	}
-): Promise<User> {
+): Promise<{ user: User; claimed: boolean }> {
 	const email = input.email.toLowerCase().trim();
 	if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
 		throw new ExternalAuthError('The identity provider did not supply a valid email');
@@ -208,7 +208,7 @@ export async function upsertExternalUser(
 			.first<UserRow>();
 
 	const known = await find();
-	if (known) return mapUser(known);
+	if (known) return { user: mapUser(known), claimed: false };
 
 	// An admin invited this email (createInvitedUser): the first verified
 	// sign-in with it claims the account. Only unclaimed rows of this provider
@@ -223,7 +223,35 @@ export async function upsertExternalUser(
 		.run();
 	if ((claimed.meta?.changes ?? 0) > 0) {
 		const invited = await find();
-		if (invited) return mapUser(invited);
+		if (invited) {
+			// They were invited at a personal email; from now on their identity here
+			// is their org mailbox. Best effort: a clash just keeps the old email.
+			try {
+				await db
+					.prepare(
+						`UPDATE users SET email = (
+							SELECT address FROM addresses WHERE user_id = users.id
+							ORDER BY is_default DESC, created_at ASC LIMIT 1
+						 )
+						 WHERE id = ?
+						   AND EXISTS (SELECT 1 FROM addresses WHERE user_id = users.id)
+						   AND NOT EXISTS (
+							SELECT 1 FROM users other
+							WHERE other.id != users.id
+							  AND other.email = (
+								SELECT address FROM addresses WHERE user_id = users.id
+								ORDER BY is_default DESC, created_at ASC LIMIT 1
+							  )
+						   )`
+					)
+					.bind(invited.id)
+					.run();
+			} catch (error) {
+				console.warn('Could not switch invited user to their org address', error);
+			}
+			const promoted = await find();
+			return { user: mapUser(promoted ?? invited), claimed: true };
+		}
 	}
 
 	if (await getUserByEmail(db, email)) {
@@ -263,13 +291,13 @@ export async function upsertExternalUser(
 	} catch (error) {
 		// A concurrent first request for the same subject won the insert.
 		const raced = await find();
-		if (raced) return mapUser(raced);
+		if (raced) return { user: mapUser(raced), claimed: false };
 		throw error;
 	}
 
 	const created = await find();
 	if (!created) throw new Error('Failed to create user');
-	return mapUser(created);
+	return { user: mapUser(created), claimed: false };
 }
 
 /**
