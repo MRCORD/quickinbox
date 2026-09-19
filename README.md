@@ -204,6 +204,7 @@ tokens, mobile pairing, MCP OAuth and the account switcher work as before.
 | --- | --- |
 | `AUTH_MODE` | `clerk` to enable. Unset (or `password`) keeps password sign-in. |
 | `CLERK_PUBLISHABLE_KEY` | Your `pk_…` key. Public. |
+| `CLERK_SECRET_KEY` | Optional. Your `sk_…` key. With it, inviting someone on the admin page (or `users create --email`) also emails them a Clerk invitation. Without it, send the Clerk invitation yourself. |
 | `CLERK_JWT_KEY` | The instance's PEM public key (JWKS public key in the Clerk dashboard). Public; store it with `wrangler secret put` so the newlines survive. |
 | `CLERK_AUTHORIZED_PARTIES` | Recommended. Comma-separated origins allowed as the token's `azp`, e.g. `https://mail.example.com`. |
 | `ADMIN_EMAILS` | Comma-separated emails that become admin on first sign-in. If nobody has signed in yet, the first person to do so is admin. |
@@ -242,6 +243,13 @@ wrangler secret put AUTH_MODE   # value: clerk
   get. No password. The account is claimed the first time they sign in with that
   email, and it does not need to be in `ALLOWED_EMAILS`. Invites only claim
   accounts created this way, never an existing password account.
+
+  If sign-ups are restricted in Clerk (Configure > Restrictions > Sign-up mode:
+  *Restricted*, recommended for a private inbox), a person with no Clerk account
+  can't register without an invitation, so Quickinbox also sends one when
+  `CLERK_SECRET_KEY` is set. The invitation email links back to `/login`, which
+  shows Clerk's sign-up form for them. People who already have a Clerk account
+  just sign in.
 - Signing out also ends the Clerk session.
 - Anyone can be *authenticated* by Clerk if sign-up is open there, but only
   admins, the very first user, invited emails and `ALLOWED_EMAILS` matches are

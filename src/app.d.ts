@@ -38,6 +38,8 @@ declare global {
 				AUTH_MODE?: string;
 				/** Clerk publishable key (pk_…); public, used by the sign-in screen. */
 				CLERK_PUBLISHABLE_KEY?: string;
+				/** Clerk secret key (sk_…): lets the admin invite send a Clerk invitation email. Optional. */
+				CLERK_SECRET_KEY?: string;
 				/** Clerk instance PEM public key; required when AUTH_MODE=clerk. */
 				CLERK_JWT_KEY?: string;
 				/** Comma-separated origins accepted as the Clerk token's `azp`. */

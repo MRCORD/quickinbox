@@ -53,6 +53,8 @@ TYPESAFE_API_KEY=REPLACE_WITH_YOUR_TYPESAFE_API_KEY
 # CLERK_PUBLISHABLE_KEY=pk_test_...
 # Instance PEM public key; keep the newlines as literal \n in one line.
 # CLERK_JWT_KEY="-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY-----"
+# Optional: lets the admin invite also email a Clerk invitation (sk_test_... locally).
+# CLERK_SECRET_KEY=sk_test_...
 # CLERK_AUTHORIZED_PARTIES=http://localhost:5173
 # ADMIN_EMAILS=you@example.com
 # Others allowed to be created on first sign-in: emails, @domain suffixes, or *.

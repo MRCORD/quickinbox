@@ -519,6 +519,8 @@
 		"temporaryPassword": "Mot de passe temporaire",
 		"signInEmail": "E-mail de connexion (celui qu’ils utilisent dans Clerk)",
 		"newUserHintClerk": "Ils se connectent avec Clerk via l’e-mail ci-dessus et arrivent dans cette boîte. Aucun mot de passe à définir.",
+		"clerkInviteFailed": "Le compte a été créé, mais l’e-mail d’invitation Clerk n’a pas pu être envoyé. Envoyez-en un depuis le tableau de bord Clerk.",
+		"clerkInviteSkipped": "Le compte a été créé. Définissez CLERK_SECRET_KEY pour envoyer l’invitation Clerk automatiquement ; en attendant, invitez la personne depuis le tableau de bord Clerk.",
 		"pendingAccountSetup": "En attente de la configuration initiale",
 		"makeAdmin": "Faire de cet utilisateur un administrateur",
 		"users": "Utilisateurs",
