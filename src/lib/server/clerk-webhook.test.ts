@@ -5,8 +5,14 @@ import { handleClerkWebhook } from './clerk-webhook';
 
 type Call = { sql: string; args: unknown[] };
 
-/** `linkedUserId` is what the lookup by Clerk subject returns. */
-function mockDb(linkedUserId: string | null) {
+/**
+ * `linkedUserId` is what the lookup by Clerk subject returns; `identity` says
+ * what their login email is and whether it is one of their own mailboxes.
+ */
+function mockDb(
+	linkedUserId: string | null,
+	identity: { email: string; org: boolean } = { email: 'personal@example.com', org: false }
+) {
 	const calls: Call[] = [];
 	const db = {
 		prepare(sql: string) {
@@ -16,7 +22,9 @@ function mockDb(linkedUserId: string | null) {
 						sql,
 						args,
 						async first() {
-							return sql.includes('SELECT id FROM users') && linkedUserId ? { id: linkedUserId } : null;
+							return sql.includes('SELECT u.id, u.email') && linkedUserId
+								? { id: linkedUserId, email: identity.email, org: identity.org ? 1 : 0 }
+								: null;
 						},
 						async run() {
 							calls.push({ sql, args });
@@ -90,3 +98,109 @@ describe('handleClerkWebhook', () => {
 		assert.equal(calls.length, 0);
 	});
 });
+
+describe('holding the org address as primary', () => {
+	const ORG = 'ada@org.example';
+	const fromClerk = (primaryId: string, ids: Record<string, string>) => ({
+		type: 'user.updated',
+		data: {
+			id: 'user_1',
+			first_name: 'Ada',
+			last_name: 'Lovelace',
+			primary_email_address_id: primaryId,
+			email_addresses: Object.entries(ids).map(([id, email_address]) => ({ id, email_address }))
+		}
+	});
+	const recorder = (status = 200) => {
+		const sent: { url: string; method: string; body: unknown }[] = [];
+		const fetcher = (async (url: string, init: RequestInit) => {
+			sent.push({ url, method: init.method ?? 'GET', body: JSON.parse(init.body as string) });
+			return new Response('{}', { status });
+		}) as unknown as typeof fetch;
+		return { sent, fetcher };
+	};
+	const env = { CLERK_SECRET_KEY: 'sk_x' };
+
+	test('moving the primary away re-points it at the org address still on the account', async () => {
+		const { db, calls } = mockDb('local-1', { email: ORG, org: true });
+		const { sent, fetcher } = recorder();
+
+		const outcome = await handleClerkWebhook(
+			db,
+			fromClerk('idn_p', { idn_o: ORG, idn_p: 'personal@example.com' }),
+			env,
+			fetcher
+		);
+
+		assert.equal(outcome, 'enforced');
+		assert.equal(sent.length, 1);
+		assert.equal(sent[0].method, 'PATCH');
+		assert.equal(sent[0].url, 'https://api.clerk.com/v1/users/user_1');
+		assert.deepEqual(sent[0].body, { primary_email_address_id: 'idn_o' });
+		// The change is not copied into the app.
+		assert.ok(!calls.some((call) => call.sql.includes('SET email')));
+	});
+
+	test('if they deleted the org address it is added back as verified and primary', async () => {
+		const { db } = mockDb('local-1', { email: ORG, org: true });
+		const { sent, fetcher } = recorder();
+
+		const outcome = await handleClerkWebhook(db, fromClerk('idn_p', { idn_p: 'personal@example.com' }), env, fetcher);
+
+		assert.equal(outcome, 'enforced');
+		assert.equal(sent[0].url, 'https://api.clerk.com/v1/email_addresses');
+		assert.deepEqual(sent[0].body, { user_id: 'user_1', email_address: ORG, verified: true, primary: true });
+	});
+
+	test('when the org address is still primary nothing is sent to Clerk', async () => {
+		const { db } = mockDb('local-1', { email: ORG, org: true });
+		const { sent, fetcher } = recorder();
+
+		const outcome = await handleClerkWebhook(
+			db,
+			fromClerk('idn_o', { idn_o: 'ADA@org.example', idn_p: 'personal@example.com' }),
+			env,
+			fetcher
+		);
+
+		assert.equal(outcome, 'synced');
+		assert.equal(sent.length, 0);
+	});
+
+	test('someone whose login is not one of their mailboxes has email changes mirrored', async () => {
+		const { db, calls } = mockDb('local-1', { email: 'old@example.com', org: false });
+		const { sent, fetcher } = recorder();
+
+		const outcome = await handleClerkWebhook(
+			db,
+			fromClerk('idn_n', { idn_n: 'new@example.com' }),
+			env,
+			fetcher
+		);
+
+		assert.equal(outcome, 'synced');
+		assert.equal(sent.length, 0);
+		assert.ok(calls.some((call) => call.sql.includes('SET email') && call.args[0] === 'new@example.com'));
+	});
+
+	test('a name change still syncs for an org identity', async () => {
+		const { db, calls } = mockDb('local-1', { email: ORG, org: true });
+		await handleClerkWebhook(db, fromClerk('idn_o', { idn_o: ORG }), env, recorder().fetcher);
+		assert.ok(calls.some((call) => call.sql.startsWith('UPDATE users SET name') && call.args[0] === 'Ada Lovelace'));
+	});
+
+	test('when Clerk refuses, or there is no key, it reports enforce_failed and does not throw', async () => {
+		const primaryElsewhere = fromClerk('idn_p', { idn_o: ORG, idn_p: 'personal@example.com' });
+
+		const refused = recorder(422);
+		assert.equal(
+			await handleClerkWebhook(mockDb('local-1', { email: ORG, org: true }).db, primaryElsewhere, env, refused.fetcher),
+			'enforce_failed'
+		);
+		assert.equal(
+			await handleClerkWebhook(mockDb('local-1', { email: ORG, org: true }).db, primaryElsewhere, {}, recorder().fetcher),
+			'enforce_failed'
+		);
+	});
+});
+

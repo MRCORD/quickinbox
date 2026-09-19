@@ -78,3 +78,37 @@ export async function makeClerkEmailPrimary(
 	}
 }
 
+/**
+ * Put `email` back as the Clerk user's primary. If it is still on their account
+ * (they only re-pointed the primary), promote that entry; if they deleted it,
+ * add it again as verified and primary. Never throws; returns whether Clerk
+ * accepted it.
+ */
+export async function restoreClerkPrimaryEmail(
+	env: { CLERK_SECRET_KEY?: string },
+	clerkUserId: string,
+	email: string,
+	existingEmailId: string | null,
+	fetcher: typeof fetch = fetch
+): Promise<boolean> {
+	if (!existingEmailId) return makeClerkEmailPrimary(env, clerkUserId, email, fetcher);
+
+	const secret = env.CLERK_SECRET_KEY?.trim();
+	if (!secret) return false;
+
+	try {
+		const response = await fetcher(`https://api.clerk.com/v1/users/${encodeURIComponent(clerkUserId)}`, {
+			method: 'PATCH',
+			headers: { Authorization: `Bearer ${secret}`, 'Content-Type': 'application/json' },
+			body: JSON.stringify({ primary_email_address_id: existingEmailId }),
+			signal: AbortSignal.timeout(8000)
+		});
+		if (response.ok) return true;
+		console.warn('Could not restore the org address as primary in Clerk', response.status);
+		return false;
+	} catch (error) {
+		console.warn('Clerk user update failed', error instanceof Error ? error.message : error);
+		return false;
+	}
+}
+

@@ -352,6 +352,27 @@ export async function revokeUserAccess(db: D1Database, userId: string): Promise<
 	);
 }
 
+/**
+ * A linked user's id and login email, and whether that email is one of their
+ * own mailboxes (their org identity, as opposed to a personal address).
+ */
+export async function getExternalIdentity(
+	db: D1Database,
+	provider: string,
+	externalId: string
+): Promise<{ id: string; email: string; orgIdentity: boolean } | null> {
+	const row = await db
+		.prepare(
+			`SELECT u.id, u.email,
+			        EXISTS (SELECT 1 FROM addresses a WHERE a.user_id = u.id AND a.address = u.email) AS org
+			 FROM users u
+			 WHERE u.auth_provider = ? AND u.external_id = ?`
+		)
+		.bind(provider, externalId)
+		.first<{ id: string; email: string; org: number }>();
+	return row ? { id: row.id, email: row.email, orgIdentity: row.org === 1 } : null;
+}
+
 export async function getExternalUserId(
 	db: D1Database,
 	provider: string,

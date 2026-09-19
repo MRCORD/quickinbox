@@ -41,7 +41,7 @@ export const POST: RequestHandler = async ({ request, platform }) => {
 	}
 
 	try {
-		return json({ ok: true, outcome: await handleClerkWebhook(db, event) });
+		return json({ ok: true, outcome: await handleClerkWebhook(db, event, platform?.env ?? {}) });
 	} catch (error) {
 		// Release the claim so Clerk's retry can succeed.
 		await db.prepare('DELETE FROM webhook_events WHERE id = ?').bind(eventId).run();
