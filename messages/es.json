@@ -98,7 +98,11 @@
 		"addAccountTitle": "Añadir cuenta — {app}",
 		"addAccount": "Añadir otra cuenta",
 		"addAccountHint": "Inicia sesión en otro buzón de este servidor. Podrás cambiar entre cuentas desde el menú de la cuenta.",
-		"backToInbox": "Volver a la bandeja de entrada"
+		"backToInbox": "Volver a la bandeja de entrada",
+		"clerkLoading": "Cargando el inicio de sesión…",
+		"clerkUnavailable": "El inicio de sesión no está disponible. Comprueba que CLERK_PUBLISHABLE_KEY esté definido.",
+		"clerkRefused": "Has iniciado sesión con Clerk, pero esta bandeja de entrada no aceptó esa cuenta. Cierra sesión e inténtalo con otra.",
+		"clerkSignOut": "Cerrar sesión"
 	},
 	"accountSetup": {
 		"title": "Completar cuenta — {app}",

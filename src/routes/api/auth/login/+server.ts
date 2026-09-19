@@ -1,11 +1,15 @@
 import { json, type RequestHandler } from '@sveltejs/kit';
 import { login, logout, readSessionToken, sessionCookieOptions, SESSION_COOKIE } from '$lib/server/auth';
+import { isClerkMode } from '$lib/server/clerk-auth';
 import { readLinkedTokens, resolveLinkedSessions, writeLinkedTokens } from '$lib/server/accounts';
 import { LINKED_SESSIONS_COOKIE, MAX_LINKED_ACCOUNTS, SESSION_DAYS } from '$lib/server/constants';
 
 export const POST: RequestHandler = async ({ request, cookies, platform, url }) => {
 	const db = platform?.env.DB;
 	if (!db) return json({ error: 'Database unavailable' }, { status: 503 });
+	if (isClerkMode(platform?.env)) {
+		return json({ error: 'Password sign-in is disabled when AUTH_MODE=clerk' }, { status: 403 });
+	}
 
 	const body = (await request.json()) as { email?: string; password?: string; add?: boolean };
 	if (!body.email || !body.password) {
@@ -55,6 +59,17 @@ export const POST: RequestHandler = async ({ request, cookies, platform, url }) 
  * told to stay in the mailbox. `?all=1` ends every session and clears both cookies.
  */
 export const DELETE: RequestHandler = async ({ cookies, platform, url }) => {
+	// Ending only the local session would let the still-valid Clerk session sign
+	// the person straight back in, so the client is told to end that one too.
+	const signedOut = () =>
+		json({
+			ok: true,
+			next: '/login',
+			...(isClerkMode(platform?.env)
+				? { clerkPublishableKey: platform?.env.CLERK_PUBLISHABLE_KEY ?? null }
+				: {})
+		});
+
 	const db = platform?.env.DB;
 	const activeToken = readSessionToken(cookies);
 	const linked = readLinkedTokens(cookies).filter((token) => token !== activeToken);
@@ -68,7 +83,7 @@ export const DELETE: RequestHandler = async ({ cookies, platform, url }) => {
 		if (db) await Promise.all(linked.map((token) => logout(db, token)));
 		cookies.delete(SESSION_COOKIE, { path: '/' });
 		cookies.delete(LINKED_SESSIONS_COOKIE, { path: '/' });
-		return json({ ok: true, next: '/login' });
+		return signedOut();
 	}
 
 	const remaining = db ? await resolveLinkedSessions(db, linked) : [];
@@ -76,7 +91,7 @@ export const DELETE: RequestHandler = async ({ cookies, platform, url }) => {
 	if (!next) {
 		cookies.delete(SESSION_COOKIE, { path: '/' });
 		cookies.delete(LINKED_SESSIONS_COOKIE, { path: '/' });
-		return json({ ok: true, next: '/login' });
+		return signedOut();
 	}
 
 	cookies.set(SESSION_COOKIE, next.token, sessionCookieOptions(SESSION_DAYS * 24 * 60 * 60, url));

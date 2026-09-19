@@ -98,7 +98,11 @@
 		"addAccountTitle": "添加账户 — {app}",
 		"addAccount": "添加另一个账户",
 		"addAccountHint": "登录此服务器上的另一个邮箱。之后可在账户菜单中切换账户。",
-		"backToInbox": "返回收件箱"
+		"backToInbox": "返回收件箱",
+		"clerkLoading": "正在加载登录…",
+		"clerkUnavailable": "登录不可用。请检查是否已设置 CLERK_PUBLISHABLE_KEY。",
+		"clerkRefused": "你已通过 Clerk 登录，但此收件箱不接受该账户。请退出登录后换一个账户。",
+		"clerkSignOut": "退出登录"
 	},
 	"accountSetup": {
 		"title": "完成账户设置 — {app}",

@@ -1,10 +1,13 @@
 <script lang="ts">
+	import ClerkSignIn from '$lib/components/ClerkSignIn.svelte';
 	import Logo from '$lib/components/Logo.svelte';
 	import { APP_NAME } from '$lib/constants';
 	import { discardPushSubscriptionFromAnotherAccount } from '$lib/push-client';
 	import { t } from '$lib/i18n';
 	import { safeNextPath } from '$lib/next-url';
 	import { page } from '$app/stores';
+
+	let { data }: { data: { authMode: 'password' | 'clerk'; clerkPublishableKey: string | null } } = $props();
 
 	let email = $state('');
 	let password = $state('');
@@ -68,6 +71,9 @@
 			{/if}
 		</div>
 
+		{#if data.authMode === 'clerk'}
+			<ClerkSignIn publishableKey={data.clerkPublishableKey} {next} />
+		{:else}
 		<form class="mt-8 space-y-4" onsubmit={submit}>
 			{#if $page.url.searchParams.get('setup') === 'complete'}
 				<p class="setup-complete">{t('accountSetup.complete')}</p>
@@ -100,6 +106,7 @@
 				<a href="/inbox" class="auth-back">{t('auth.backToInbox')}</a>
 			{/if}
 		</form>
+		{/if}
 	</div>
 </div>
 

@@ -98,7 +98,11 @@
 		"addAccountTitle": "Ajouter un compte — {app}",
 		"addAccount": "Ajouter un autre compte",
 		"addAccountHint": "Connectez-vous à une autre boîte mail sur ce serveur. Vous pourrez passer d'un compte à l'autre depuis le menu du compte.",
-		"backToInbox": "Retour à la boîte de réception"
+		"backToInbox": "Retour à la boîte de réception",
+		"clerkLoading": "Chargement de la connexion…",
+		"clerkUnavailable": "La connexion est indisponible. Vérifiez que CLERK_PUBLISHABLE_KEY est défini.",
+		"clerkRefused": "Vous êtes connecté avec Clerk, mais cette boîte de réception n'a pas accepté ce compte. Déconnectez-vous et essayez-en un autre.",
+		"clerkSignOut": "Se déconnecter"
 	},
 	"accountSetup": {
 		"title": "Finaliser le compte — {app}",

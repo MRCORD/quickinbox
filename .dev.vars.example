@@ -44,3 +44,14 @@ RESEND_WEBHOOK_SECRET=whsec_xxxxxxxxxxxxxxxxxxxxxxxxxxxx
 # Forums, and spam. Keep the placeholder to skip — everything stays in Primary.
 # Production: wrangler secret put TYPESAFE_API_KEY
 TYPESAFE_API_KEY=REPLACE_WITH_YOUR_TYPESAFE_API_KEY
+
+# --- Sign in with Clerk (optional) ---
+# Leave AUTH_MODE unset to keep email + password. See "Sign in with Clerk" in
+# the README. Use a Clerk *development* instance locally; production keys do
+# not work on localhost.
+# AUTH_MODE=clerk
+# CLERK_PUBLISHABLE_KEY=pk_test_...
+# Instance PEM public key; keep the newlines as literal \n in one line.
+# CLERK_JWT_KEY="-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY-----"
+# CLERK_AUTHORIZED_PARTIES=http://localhost:5173
+# ADMIN_EMAILS=you@example.com

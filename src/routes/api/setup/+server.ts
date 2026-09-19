@@ -14,6 +14,7 @@ import {
 	hasProviderConfigured,
 	ProviderError
 } from '$lib/server/context';
+import { isClerkMode } from '$lib/server/clerk-auth';
 import { createAddress, setCatchallUser, upsertDomain } from '$lib/server/domains';
 
 export const GET: RequestHandler = async ({ platform }) => {
@@ -25,7 +26,7 @@ export const GET: RequestHandler = async ({ platform }) => {
 	const users = await countUsers(db);
 	return json({
 		ready: true,
-		needsSetup: users === 0,
+		needsSetup: users === 0 && !isClerkMode(platform?.env),
 		providerConfigured: hasProviderConfigured(platform),
 		providerKind: safeEmailProviderKind(platform)
 	});
@@ -38,6 +39,12 @@ export const GET: RequestHandler = async ({ platform }) => {
 export const POST: RequestHandler = async ({ request, cookies, platform, url }) => {
 	const db = platform?.env.DB;
 	if (!db) return json({ error: 'Database unavailable' }, { status: 503 });
+
+	// Password bootstrap would hand an anonymous visitor an admin; under Clerk the
+	// first identity to sign in claims the instance instead.
+	if (isClerkMode(platform?.env)) {
+		return json({ error: 'Password setup is disabled when AUTH_MODE=clerk' }, { status: 403 });
+	}
 
 	// The whole endpoint is only open while the app is uninitialised.
 	if ((await countUsers(db)) > 0) {

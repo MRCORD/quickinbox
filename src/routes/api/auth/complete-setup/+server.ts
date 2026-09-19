@@ -1,11 +1,13 @@
 import { json, type RequestHandler } from '@sveltejs/kit';
 import { completeFirstLogin, SESSION_COOKIE } from '$lib/server/auth';
+import { isClerkMode } from '$lib/server/clerk-auth';
 
 type SetupErrorCode =
 	| 'unauthorized'
 	| 'already_complete'
 	| 'database_unavailable'
 	| 'invalid_request'
+	| 'disabled'
 	| 'name_required'
 	| 'name_too_long'
 	| 'password_too_short'
@@ -19,6 +21,9 @@ function setupError(code: SetupErrorCode, status: number) {
 }
 
 export const POST: RequestHandler = async ({ request, locals, cookies, platform }) => {
+	if (isClerkMode(platform?.env)) {
+		return setupError('disabled', 403);
+	}
 	if (!locals.user || locals.authMethod !== 'session') {
 		return setupError('unauthorized', 401);
 	}

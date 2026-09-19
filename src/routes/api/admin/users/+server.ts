@@ -1,5 +1,6 @@
 import { json, type RequestHandler } from '@sveltejs/kit';
 import { createUser, deletePendingUser, listUsers } from '$lib/server/auth';
+import { isClerkMode } from '$lib/server/clerk-auth';
 import { createAddress, getDomain, listAllAddresses } from '$lib/server/domains';
 
 export const GET: RequestHandler = async ({ locals, platform }) => {
@@ -21,6 +22,10 @@ export const GET: RequestHandler = async ({ locals, platform }) => {
 export const POST: RequestHandler = async ({ request, locals, platform }) => {
 	if (!locals.user?.is_admin) {
 		return json({ error: 'Forbidden' }, { status: 403 });
+	}
+	// Invites carry a temporary password; under Clerk, people are invited there.
+	if (isClerkMode(platform?.env)) {
+		return json({ error: 'Invite users in Clerk when AUTH_MODE=clerk' }, { status: 403 });
 	}
 
 	const db = platform?.env.DB;
