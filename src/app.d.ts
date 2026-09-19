@@ -44,6 +44,8 @@ declare global {
 				CLERK_AUTHORIZED_PARTIES?: string;
 				/** Comma-separated emails made admin on first Clerk sign-in. */
 				ADMIN_EMAILS?: string;
+				/** Signing secret (whsec_…) of the Clerk webhook at /api/webhooks/clerk. */
+				CLERK_WEBHOOK_SECRET?: string;
 				/** Emails, `@domain` suffixes or `*` allowed to be auto-provisioned in clerk mode. */
 				ALLOWED_EMAILS?: string;
 				/** Optional TypeSafe key for inbound category/spam classification. */
