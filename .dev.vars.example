@@ -58,3 +58,5 @@ TYPESAFE_API_KEY=REPLACE_WITH_YOUR_TYPESAFE_API_KEY
 # Others allowed to be created on first sign-in: emails, @domain suffixes, or *.
 # Unset = only the first user and ADMIN_EMAILS.
 # ALLOWED_EMAILS=@example.com
+# Signing secret of the Clerk webhook at /api/webhooks/clerk (user.updated, user.deleted).
+# CLERK_WEBHOOK_SECRET=whsec_...

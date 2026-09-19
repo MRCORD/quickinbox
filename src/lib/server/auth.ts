@@ -256,6 +256,65 @@ export async function upsertExternalUser(
 	return mapUser(created);
 }
 
+/**
+ * Cut off every way a user can get in — browser and mobile sessions, API
+ * tokens, MCP grants, pending pairing codes, push — without touching their
+ * mail. Used when the IdP says the person is gone.
+ */
+export async function revokeUserAccess(db: D1Database, userId: string): Promise<void> {
+	await db.batch(
+		['sessions', 'api_tokens', 'oauth_grants', 'oauth_codes', 'pairing_codes', 'push_subscriptions'].map(
+			(table) => db.prepare(`DELETE FROM ${table} WHERE user_id = ?`).bind(userId)
+		)
+	);
+}
+
+export async function getExternalUserId(
+	db: D1Database,
+	provider: string,
+	externalId: string
+): Promise<string | null> {
+	const row = await db
+		.prepare('SELECT id FROM users WHERE auth_provider = ? AND external_id = ?')
+		.bind(provider, externalId)
+		.first<{ id: string }>();
+	return row?.id ?? null;
+}
+
+/**
+ * Mirror a rename or email change from the IdP. The email is skipped rather
+ * than failing when another account already uses it.
+ */
+export async function syncExternalProfile(
+	db: D1Database,
+	provider: string,
+	externalId: string,
+	profile: { name?: string | null; email?: string | null }
+): Promise<void> {
+	const name = profile.name?.trim();
+	if (name) {
+		await db
+			.prepare('UPDATE users SET name = ? WHERE auth_provider = ? AND external_id = ?')
+			.bind(name.slice(0, 128), provider, externalId)
+			.run();
+	}
+
+	const email = profile.email?.toLowerCase().trim();
+	if (email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+		await db
+			.prepare(
+				`UPDATE users SET email = ?
+				 WHERE auth_provider = ? AND external_id = ?
+				   AND NOT EXISTS (
+					SELECT 1 FROM users other
+					WHERE other.email = ? AND NOT (other.auth_provider = ? AND other.external_id = ?)
+				   )`
+			)
+			.bind(email, provider, externalId, email, provider, externalId)
+			.run();
+	}
+}
+
 export type DeviceSession = {
 	id: string;
 	device_name: string | null;

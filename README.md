@@ -243,6 +243,23 @@ wrangler secret put AUTH_MODE   # value: clerk
   account here. Everyone else sees "this inbox did not accept that account".
   Accounts that already exist are unaffected.
 
+**Keeping accounts in step with Clerk (optional webhook)**
+
+Without a webhook, removing someone in Clerk does not end their access here:
+their local sessions and API tokens keep working until they expire. To fix
+that, add a webhook in the Clerk dashboard (Webhooks > Add endpoint):
+
+- URL: `https://<your-app>/api/webhooks/clerk`
+- Events: `user.updated` and `user.deleted`
+- Then set its signing secret: `wrangler secret put CLERK_WEBHOOK_SECRET` (`whsec_…`)
+
+`user.deleted` revokes every credential that person holds (sessions, API
+tokens, MCP grants, pairing codes, push subscriptions) but keeps their account
+and mail, so a mistaken delete in Clerk can't erase a mailbox. An admin can
+delete the account deliberately from the admin page. `user.updated` mirrors
+name and email changes. Accounts are never created by the webhook; they are
+created at sign-in, subject to `ALLOWED_EMAILS`.
+
 **Moving an existing install to Clerk**
 
 A Clerk sign-in is never matched to an existing account by email, so an existing
