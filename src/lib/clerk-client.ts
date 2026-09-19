@@ -11,6 +11,8 @@ export type ClerkBrowser = {
 		props: { forceRedirectUrl?: string; signInUrl?: string; appearance?: Record<string, unknown> }
 	): void;
 	signOut(options?: { redirectUrl?: string }): Promise<void>;
+	openUserProfile(props?: { appearance?: Record<string, unknown> }): void;
+	openSignIn(props?: { forceRedirectUrl?: string; appearance?: Record<string, unknown> }): void;
 };
 
 /**
@@ -52,3 +54,70 @@ export async function loadClerk(publishableKey: string): Promise<ClerkBrowser> {
 	await clerk.load();
 	return clerk;
 }
+
+/**
+ * Clerk's look, taken from the app's theme so it isn't a white card on a dark
+ * page. `embedded` also flattens Clerk's own card and drops its header and
+ * "Sign up" link, for use inside our sign-in card; the profile modal keeps its
+ * own chrome and only takes the colors.
+ */
+export function clerkAppearance(embedded: boolean): Record<string, unknown> {
+	const css = getComputedStyle(document.documentElement);
+	const token = (name: string, fallback: string) => css.getPropertyValue(name).trim() || fallback;
+	const variables = {
+		colorText: token('--color-text', '#111111'),
+		colorTextSecondary: token('--color-text-secondary', '#666666'),
+		colorBackground: token('--color-surface', '#ffffff'),
+		colorInputBackground: token('--color-surface-muted', '#f3f3f3'),
+		colorInputText: token('--color-text', '#111111'),
+		colorPrimary: token('--color-accent', '#90ac9a'),
+		colorTextOnPrimaryBackground: '#111111',
+		borderRadius: '0.5rem'
+	};
+	if (!embedded) return { variables };
+
+	const flat = { boxShadow: 'none', background: 'transparent', border: 'none' };
+	return {
+		variables,
+		elements: {
+			rootBox: { width: '100%' },
+			cardBox: { ...flat, width: '100%' },
+			card: { ...flat, padding: 0, width: '100%' },
+			// The page already shows the logo and "Sign in".
+			header: { display: 'none' },
+			// Access is decided by the server, not by whether Clerk offers sign-up.
+			footerAction: { display: 'none' },
+			footer: flat,
+			socialButtonsBlockButton: {
+				background: token('--color-surface-muted', '#f3f3f3'),
+				border: '1px solid rgba(128, 128, 128, 0.25)'
+			},
+			socialButtonsBlockButtonText: { color: token('--color-text', '#111111') },
+			dividerLine: { background: 'rgba(128, 128, 128, 0.3)' },
+			dividerText: { color: token('--color-text-secondary', '#666666') }
+		}
+	};
+}
+
+/** The publishable key when this install signs in through Clerk, else null. */
+export function manageAccountKey(pageData: Record<string, unknown>): string | null {
+	return pageData.authMode === 'clerk' && typeof pageData.clerkPublishableKey === 'string'
+		? pageData.clerkPublishableKey
+		: null;
+}
+
+/**
+ * Open Clerk's account modal: name, emails, password, sessions. Changes reach
+ * the app through the `user.updated` webhook. Someone whose browser has no
+ * Clerk session (signed in before Clerk was on) is asked to sign in first.
+ */
+export async function openManageAccount(publishableKey: string): Promise<void> {
+	try {
+		const clerk = await loadClerk(publishableKey);
+		if (clerk.user) clerk.openUserProfile({ appearance: clerkAppearance(false) });
+		else clerk.openSignIn({ forceRedirectUrl: window.location.href, appearance: clerkAppearance(false) });
+	} catch (error) {
+		console.warn('Could not open the Clerk account modal', error);
+	}
+}
+

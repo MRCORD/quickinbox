@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/stores';
+	import { manageAccountKey, openManageAccount } from '$lib/clerk-client';
 	import Icon from './Icon.svelte';
 	import DomainSwitcher from './DomainSwitcher.svelte';
 	import LocaleSwitcher from './LocaleSwitcher.svelte';
@@ -28,6 +29,8 @@
 		onLogout: () => void;
 		onLogoutAll?: () => void;
 	} = $props();
+
+	const manageKey = $derived(manageAccountKey($page.data));
 
 	const otherAccounts = $derived(accounts.filter((account) => !account.current));
 	let switching = $state(false);
@@ -257,6 +260,18 @@
 		</div>
 
 		<div class="sheet-section">
+			{#if manageKey}
+				<button
+					type="button"
+					class="sheet-link"
+					onclick={() => {
+						void openManageAccount(manageKey);
+					}}
+				>
+					<Icon name="account-circle-line" size={20} />
+					<span>{t('account.manageAccount')}</span>
+				</button>
+			{/if}
 			<button type="button" class="sheet-link sheet-logout" onclick={onLogout}>
 				<Icon name="logout-box-r-line" size={20} />
 				<span>{t('nav.logOut')}</span>
