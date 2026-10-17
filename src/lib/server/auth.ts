@@ -869,6 +869,9 @@ export async function deleteUser(
 		db.prepare(`DELETE FROM api_tokens WHERE user_id = ? AND ${gone}`).bind(targetId, targetId),
 		db.prepare(`DELETE FROM oauth_grants WHERE user_id = ? AND ${gone}`).bind(targetId, targetId),
 		db.prepare(`DELETE FROM oauth_codes WHERE user_id = ? AND ${gone}`).bind(targetId, targetId),
+		db.prepare(`DELETE FROM send_attempts WHERE user_id = ? AND ${gone}`).bind(targetId, targetId),
+		db.prepare(`DELETE FROM api_send_budget WHERE user_id = ? AND ${gone}`).bind(targetId, targetId),
+		db.prepare(`DELETE FROM ai_providers WHERE user_id = ? AND ${gone}`).bind(targetId, targetId),
 		db.prepare(`DELETE FROM pairing_codes WHERE user_id = ? AND ${gone}`).bind(targetId, targetId),
 		db
 			.prepare(`DELETE FROM push_subscriptions WHERE user_id = ? AND ${gone}`)

@@ -1,4 +1,5 @@
 import type { D1Database, ExecutionContext, R2Bucket } from '@cloudflare/workers-types';
+import type { WorkersAiBinding } from '$lib/server/ai-provider';
 import type { ApiScope, AuthMethod } from '$lib/server/api-access';
 import type { CloudflareSendEmailBinding } from '$lib/server/providers/cloudflare-provider';
 import type { Domain, LinkedAccount, MailAddress, User } from '$lib/types';
@@ -52,6 +53,14 @@ declare global {
 				ALLOWED_EMAILS?: string;
 				/** Optional TypeSafe key for inbound category/spam classification. */
 				TYPESAFE_API_KEY?: string;
+				/** `false` stops all sending with API keys and MCP tokens. */
+				API_SEND_ENABLED?: string;
+				/** Sends per user per UTC day for API keys and MCP tokens (default 100, 0 = no limit). */
+				API_DAILY_SEND_LIMIT?: string;
+				/** Workers AI, for an admin who picks it as the instance drafting provider. */
+				AI?: WorkersAiBinding;
+				/** 32+ random characters; encrypts the AI provider keys people save. */
+				ENCRYPTION_KEY?: string;
 			};
 		}
 		interface Locals {

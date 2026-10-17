@@ -369,6 +369,36 @@ message; notifications are not sent for that backfill.
 Promotions and Social do not send push/Telegram notifications. High-confidence
 spam is filed silently.
 
+### AI drafting (optional)
+
+**Draft reply** in a reply box asks a model to write an answer to the message,
+using the conversation so far and your **Drafting instructions** (Settings → AI
+drafting: who you are, your tone, what never to promise). The draft lands in the
+reply box for you to edit; nothing is sent or saved until you press Send. The
+model is told the conversation is untrusted and that it has not seen any
+attachments.
+
+It needs a model. There are two ways to provide one, and a person's own key
+takes precedence:
+
+- **Server default** — an admin picks one under **Admin → AI drafting**:
+  Workers AI (runs on this Cloudflare account through the `AI` binding, no key,
+  billed to the account), or a shared OpenAI-compatible or Anthropic key.
+- **Bring your own key** — anyone can add one under **Settings → AI drafting**:
+  any OpenAI-compatible server (OpenAI, OpenRouter, sub2api, your own gateway —
+  give the base URL ending in `/v1`) or Anthropic.
+
+Saved keys are encrypted with the `ENCRYPTION_KEY` secret. `bun run setup`
+generates one; otherwise set it once:
+
+```bash
+openssl rand -base64 32 | bunx wrangler secret put ENCRYPTION_KEY
+```
+
+Keep it: a new value makes every saved key unreadable, and people have to save
+their keys again. **Test connection** sends a one-word request through the
+saved provider so you can check the URL, key and model before relying on them.
+
 ## Development
 
 ```bash
@@ -415,6 +445,12 @@ curl https://your-worker/api/mail \
 shown once. Revoking a key takes effect immediately. New keys start with
 `qi_live_`; existing `qm_live_` keys keep working after you pull this update.
 
+Sends (`POST /api/mail`, replies, forwards) accept an `Idempotency-Key` header
+— 8–200 characters of `A-Z a-z 0-9 . _ : -`, a UUID works. Retrying with the
+same key returns the first result instead of emailing twice; reusing it for a
+different message is refused with `409`. Keys are per user, and a send that
+failed can be retried under its key.
+
 ## MCP (hosted, with OAuth)
 
 Every instance is a remote MCP server. Add its URL to Claude, Cursor, ChatGPT,
@@ -434,6 +470,26 @@ its tokens stop working immediately.
 Tools: `whoami`, `list_threads`, `search_mail`, `get_thread`, `list_attachments`
 (scope `mail:read`), `send_message`, `reply`, `update_thread` (scope `mail:send`).
 A client that asks for only `mail:read` never sees the send tools.
+`send_message` and `reply` require an `idempotency_key`, so a client that
+retries after a timeout never sends the same message twice.
+
+Built for agents that read untrusted mail:
+
+- Tool descriptions tell the model that message content is data, not
+  instructions, and tools carry MCP hints (`readOnlyHint`, `destructiveHint`)
+  so clients can auto-approve reads and confirm sends.
+- `reply` goes to the message's `reply_target` from `get_thread` and requires
+  it back as `expected_recipients`. It fails with `conversation_advanced` if the
+  conversation has a newer message than the one being answered (theirs, or a
+  reply someone else sent meanwhile), or `recipient_changed` if the target differs — writing to anyone else takes
+  `send_message`. On the hosted MCP, errors like these come back as
+  `{ "error": { "code", "message", "retryable" } }`.
+- Sends made with an API key or MCP token — REST, CLI, or MCP — are capped at
+  100 per user per UTC day. Set `API_DAILY_SEND_LIMIT` to change that (`0`
+  removes the cap). Set `API_SEND_ENABLED=false` to stop them all at once: the
+  hosted MCP stops listing the send tools, and the REST API (and so the CLI's
+  stdio MCP) answers `403`.
+  Neither touches sending from the web app.
 
 Under the hood this is a standard OAuth 2.1 authorization server (RFC 8414 and
 RFC 9728 discovery, RFC 7591 dynamic registration, PKCE S256, refresh-token
