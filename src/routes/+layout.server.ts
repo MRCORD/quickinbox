@@ -1,6 +1,7 @@
 import type { LayoutServerLoad } from './$types';
 import { isClerkMode } from '$lib/server/clerk-auth';
 import { emptyMailboxCounts } from '$lib/mail/categories';
+import { hasAiProvider } from '$lib/server/draft-reply';
 import { listLabels } from '$lib/server/labels';
 import { getMailboxCounts } from '$lib/server/mail-store';
 import { DEFAULT_UI_THEME } from '$lib/ui-theme/ids';
@@ -15,6 +16,8 @@ export const load: LayoutServerLoad = async ({ locals, platform }) => {
 		? await getMailboxCounts(db!, locals.user!.id, locals.activeDomainId)
 		: emptyMailboxCounts();
 	const labels = ready ? await listLabels(db!, locals.user!.id) : [];
+	// Offer "Draft reply" only when there is a model to write it.
+	const aiDrafting = ready ? await hasAiProvider(db!, locals.user!.id) : false;
 
 	const clerk = isClerkMode(platform?.env);
 
@@ -29,6 +32,7 @@ export const load: LayoutServerLoad = async ({ locals, platform }) => {
 		accounts: locals.accounts,
 		counts,
 		labels,
+		aiDrafting,
 		uiTheme: locals.uiTheme ?? DEFAULT_UI_THEME,
 		locale: locals.locale ?? DEFAULT_LOCALE
 	};

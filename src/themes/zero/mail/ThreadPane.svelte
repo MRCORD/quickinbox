@@ -6,7 +6,7 @@
 	import { resolveInlineImages, visibleAttachments } from '$lib/utils/inline-images';
 	import RichTextEditor from '$lib/components/RichTextEditor.svelte';
 	import Tooltip from '$lib/components/Tooltip.svelte';
-	import { htmlToPlainText, isHtmlEmpty } from '$lib/utils/html';
+	import { htmlToPlainText, isHtmlEmpty, plainTextToHtml } from '$lib/utils/html';
 	import { formatMailDate, formatMailTime, shouldShowSeparateTime } from '$lib/utils/date';
 	import { attachmentHref } from '$lib/utils/attachments';
 	import { runMailAction } from '$lib/mail/client';
@@ -58,7 +58,10 @@
 	let attachments = $state<OutboundAttachmentInput[]>([]);
 	let includeOriginalAttachments = $state(true);
 	let sending = $state(false);
+	// One key per message: a resubmit after a dropped response can't send twice.
+	let sendKey = crypto.randomUUID();
 	let sendError = $state('');
+	let drafting = $state(false);
 	let dark = $state(false);
 	let detailsFor = $state<string | null>(null);
 	let menuFor = $state<string | null>(null);
@@ -301,6 +304,8 @@
 	}
 
 	function startReply(mode: ReplyMode, message: ThreadMessage) {
+		// A new reply or forward is a new message, so it gets its own key.
+		sendKey = crypto.randomUUID();
 		replyMode = mode;
 		replyTarget = message;
 		replyOpen = true;
@@ -357,8 +362,43 @@
 		}
 	}
 
+	/** Fill the reply box with an AI draft of an answer to the message being replied to. */
+	async function draftWithAi() {
+		const message = replyTarget ?? latest;
+		if (!message || drafting) return;
+		if (!isHtmlEmpty(replyHtml) && !confirm(t('thread.replaceWithDraft'))) return;
+
+		const before = replyHtml;
+		drafting = true;
+		sendError = '';
+		try {
+			const response = await fetch(`/api/mail/${encodeURIComponent(message.id)}/draft-reply`, {
+				method: 'POST'
+			});
+			const body = (await response.json()) as { text?: string; error?: string };
+			// The reply may have moved on — closed, sent, or another thread — while
+			// the model was writing; never drop a draft into the wrong composer.
+			if (!replyOpen || (replyTarget ?? latest)?.id !== message.id) return;
+			if (!response.ok || !body.text) {
+				sendError = body.error ?? t('thread.draftFailed');
+				return;
+			}
+			if (replyHtml !== before) {
+				sendError = t('thread.draftStale');
+				return;
+			}
+			replyHtml = plainTextToHtml(body.text);
+		} catch {
+			sendError = t('common.networkError');
+		} finally {
+			drafting = false;
+		}
+	}
+
 	async function sendReply() {
 		const message = replyTarget ?? latest;
+		// Wait for a draft in progress rather than send what is about to be replaced.
+		if (drafting) return;
 		if (!message || (!forwarding && isHtmlEmpty(replyHtml))) return;
 		if (forwarding && !replyTo.trim()) {
 			sendError = t('thread.addRecipient');
@@ -374,7 +414,7 @@
 						: `/api/mail/${encodeURIComponent(message.id)}/forward`;
 				const response = await fetch(endpoint, {
 					method: 'POST',
-					headers: { 'Content-Type': 'application/json' },
+					headers: { 'Content-Type': 'application/json', 'Idempotency-Key': sendKey },
 					body: JSON.stringify({
 						to: replyTo,
 						cc: replyCc.trim() || undefined,
@@ -392,7 +432,7 @@
 			} else {
 				const response = await fetch(`/api/mail/${message.id}`, {
 					method: 'POST',
-					headers: { 'Content-Type': 'application/json' },
+					headers: { 'Content-Type': 'application/json', 'Idempotency-Key': sendKey },
 					body: JSON.stringify({
 						to: replyTo,
 						cc: replyCc.trim() || undefined,
@@ -408,6 +448,7 @@
 					return;
 				}
 			}
+			sendKey = crypto.randomUUID();
 			replyOpen = false;
 			replyHtml = '';
 			attachments = [];
@@ -455,13 +496,19 @@
 				</button>
 			</Tooltip>
 			<div class="z-thread-bar-right">
-				<button type="button" class="z-thread-replyall" onclick={startForwardAll}>
+				<button
+					type="button"
+					class="z-thread-replyall"
+					aria-label={t('thread.forwardAll')}
+					onclick={startForwardAll}
+				>
 					<Icon name="Forward" size={14} />
 					<span>{t('thread.forwardAll')}</span>
 				</button>
 				<button
 					type="button"
 					class="z-thread-replyall"
+					aria-label={t('thread.replyAll')}
 					onclick={() => startReply('replyAll', latest)}
 				>
 					<Icon name="Reply" size={14} />
@@ -775,10 +822,26 @@
 						bind:attachments
 						bind:includeOriginalAttachments
 						sending={sending}
+						disabled={drafting}
 						error={sendError}
 						allowNewAttachments={!forwarding}
 						originalAttachmentCount={forwardedAttachmentCount}
-					/>
+					>
+						{#snippet extra()}
+							{#if !forwarding && $page.data.aiDrafting}
+								<button
+									type="button"
+									class="z-text-btn"
+									disabled={drafting || sending}
+									aria-busy={drafting}
+									onclick={() => void draftWithAi()}
+								>
+									<Icon name="Sparkles" size={12} />
+									{drafting ? t('thread.drafting') : t('thread.draftReply')}
+								</button>
+							{/if}
+						{/snippet}
+					</ComposerActions>
 				</form>
 			{/if}
 		</div>

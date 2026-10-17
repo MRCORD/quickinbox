@@ -1,4 +1,5 @@
 import type { D1Database, R2Bucket } from '@cloudflare/workers-types';
+import type { WorkersAiBinding } from '$lib/server/ai-provider';
 import type { CloudflareSendEmailBinding } from '$lib/server/providers/cloudflare-provider';
 
 declare global {
@@ -19,6 +20,10 @@ declare global {
 		TELEGRAM_THREAD_ID?: string;
 		APP_URL?: string;
 		TYPESAFE_API_KEY?: string;
+		API_SEND_ENABLED?: string;
+		API_DAILY_SEND_LIMIT?: string;
+		AI?: WorkersAiBinding;
+		ENCRYPTION_KEY?: string;
 	}
 }
 

@@ -2,6 +2,7 @@ import type { D1Database, R2Bucket } from '@cloudflare/workers-types';
 import type { EmailRow, User } from '$lib/types';
 import { readOutboundAttachments } from './attachments';
 import type { EmailProvider } from './email-provider';
+import type { ApiSendPolicy } from './send-policy';
 import { buildForwardedMessages, orderForwardedMessages, type ForwardNote } from './forward';
 import { resolveReplyFromAddress, sendAndStore } from './outbox';
 import { parseRecipients } from './send-mail';
@@ -14,6 +15,9 @@ export type ForwardRequest = {
 	text?: string;
 	html?: string;
 	includeAttachments?: boolean;
+	idempotencyKey?: string;
+	/** Set by the route from the credential — never taken from the request body. */
+	apiPolicy?: ApiSendPolicy;
 };
 
 export async function readForwardedAttachments(
@@ -71,7 +75,9 @@ export async function sendForwardedMessages(
 		html,
 		attachments,
 		allowCombinedAttachments: ordered.length > 1,
-		subjectMatch: false
+		subjectMatch: false,
+		idempotencyKey: input.idempotencyKey,
+		apiPolicy: input.apiPolicy
 	});
 
 	return { emailId };
