@@ -86,12 +86,42 @@
 		localeOpen = false;
 	}
 
+	/** Back to the combined inbox: drop the address filter and the persisted domain filter. */
+	async function clearFilters() {
+		switching = true;
+		closeMenus();
+		try {
+			const url = new URL($page.url);
+			url.searchParams.delete('address');
+			url.searchParams.delete('thread');
+			if (data.activeDomainId !== null) {
+				await fetch('/api/domains/select', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ domainId: null })
+				});
+				window.location.assign(`${url.pathname}${url.search}`);
+				return;
+			}
+			await goto(`${url.pathname}${url.search}`, { noScroll: true });
+		} finally {
+			switching = false;
+		}
+	}
+
 	async function selectAddress(address: MailAddress) {
-		if (switching || address.id === active?.id) {
-			closeMenus();
+		if (switching) return;
+
+		// Picking the tile that is already showing undoes the filter, so a
+		// domain picked earlier can never silently hide the other domains' mail.
+		if (address.id === active?.id) {
+			if (filteredId !== null || data.activeDomainId !== null) {
+				await clearFilters();
+			} else {
+				closeMenus();
+			}
 			return;
 		}
-
 		switching = true;
 		closeMenus();
 		try {
