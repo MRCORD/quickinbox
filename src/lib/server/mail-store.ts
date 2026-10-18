@@ -293,13 +293,8 @@ function buildScope(userId: string, query: MailboxQuery): { where: string; bindi
 	}
 
 	if (query.addressId) {
-		// Catch-all mail has no address row of its own, so it belongs to every
-		// address on its domain; otherwise switching address would hide it.
-		filters.push(
-			`(e.address_id = ? OR (e.address_id IS NULL
-			   AND e.domain_id = (SELECT domain_id FROM addresses WHERE id = ?)))`
-		);
-		bindings.push(query.addressId, query.addressId);
+		filters.push('e.address_id = ?');
+		bindings.push(query.addressId);
 	}
 
 	const term = query.q?.trim();
