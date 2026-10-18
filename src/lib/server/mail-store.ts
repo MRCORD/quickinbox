@@ -293,8 +293,17 @@ function buildScope(userId: string, query: MailboxQuery): { where: string; bindi
 	}
 
 	if (query.addressId) {
-		filters.push('e.address_id = ?');
-		bindings.push(query.addressId);
+		// Catch-all mail has no address row of its own. When the user's only
+		// address on a domain is the one being viewed, that address is the
+		// domain's mailbox and also lists the domain's unassigned mail.
+		filters.push(
+			`(e.address_id = ?
+			  OR (e.address_id IS NULL
+			      AND e.domain_id = (SELECT domain_id FROM addresses WHERE id = ?)
+			      AND (SELECT COUNT(*) FROM addresses sole
+			           WHERE sole.user_id = e.user_id AND sole.domain_id = e.domain_id) = 1))`
+		);
+		bindings.push(query.addressId, query.addressId);
 	}
 
 	const term = query.q?.trim();
