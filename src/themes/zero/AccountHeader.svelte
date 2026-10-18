@@ -52,6 +52,8 @@
 
 	const manageKey = $derived(manageAccountKey($page.data));
 	const filteredId = $derived($page.url.searchParams.get('address'));
+	/** An address or domain filter is narrowing the list (the combined inbox has neither). */
+	const filtering = $derived(filteredId !== null || data.activeDomainId !== null);
 	const active = $derived(
 		data.addresses.find((address) => address.id === filteredId) ??
 			data.addresses.find((address) => address.is_default) ??
@@ -115,7 +117,7 @@
 		// Picking the tile that is already showing undoes the filter, so a
 		// domain picked earlier can never silently hide the other domains' mail.
 		if (address.id === active?.id) {
-			if (filteredId !== null || data.activeDomainId !== null) {
+			if (filtering) {
 				await clearFilters();
 			} else {
 				closeMenus();
@@ -180,7 +182,7 @@
 		<div class="z-account-row">
 			<div class="z-tiles">
 				{#each shown as address (address.id)}
-					{@const selected = address.id === active?.id}
+					{@const selected = filtering && address.id === active?.id}
 					<div class="z-tile-wrap">
 						<Tooltip text={addressTip(address)}>
 							<button
@@ -224,7 +226,7 @@
 								{#each extra as address (address.id)}
 									<button
 										type="button"
-										aria-current={address.id === active?.id ? 'true' : undefined}
+										aria-current={filtering && address.id === active?.id ? 'true' : undefined}
 										onclick={() => selectAddress(address)}
 									>
 										<span class="z-tile">{tileLabel(address)}</span>
